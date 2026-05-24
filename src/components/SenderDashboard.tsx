@@ -18,6 +18,17 @@ import { AppSettings, RecruiterRecord, ParsedEmailState } from '../types';
 import { extractCompanyName, isValidEmail, getResume } from '../db';
 import { initAuth, googleSignIn, logout } from '../lib/firebaseAuth';
 
+const getAbsoluteUrl = (path: string): string => {
+  if (typeof window !== 'undefined' && (
+    window.location.origin.includes('capacitor://') || 
+    window.location.origin.includes('app://') || 
+    !window.location.origin.includes('localhost')
+  )) {
+    return `https://ais-dev-6xmvfw4eu3sxvbwrb7fool-815669580742.asia-southeast1.run.app${path}`;
+  }
+  return path;
+};
+
 interface SenderDashboardProps {
   settings: AppSettings;
   history: RecruiterRecord[];
@@ -235,7 +246,7 @@ export default function SenderDashboard({
 
       const base64CV = bufferToBase64(resume.data);
 
-      const url = isOauth ? '/api/send-email-oauth' : '/api/send-email';
+      const url = isOauth ? getAbsoluteUrl('/api/send-email-oauth') : getAbsoluteUrl('/api/send-email');
       const bodyPayload = isOauth
         ? {
             accessToken: oauthToken,
@@ -365,7 +376,7 @@ export default function SenderDashboard({
         addLog(`[${i + 1}/${targets.length}] Dispatching cover letter email to ${item.email}...`);
 
         try {
-          const url = isOauth ? '/api/send-email-oauth' : '/api/send-email';
+          const url = isOauth ? getAbsoluteUrl('/api/send-email-oauth') : getAbsoluteUrl('/api/send-email');
           const bodyPayload = isOauth
             ? {
                 accessToken: oauthToken,

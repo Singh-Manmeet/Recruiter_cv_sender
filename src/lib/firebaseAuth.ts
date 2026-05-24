@@ -1,5 +1,7 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, User } from 'firebase/auth';
+import { getAuth, signInWithPopup, signInWithCredential, GoogleAuthProvider, onAuthStateChanged, User } from 'firebase/auth';
+import { Capacitor } from '@capacitor/core';
+import { GoogleAuth } from '@codetrix-studio/capacitor-google-auth';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 // Initialize Firebase with the workspace-level credentials
@@ -13,10 +15,19 @@ provider.addScope('https://www.googleapis.com/auth/gmail.send');
 provider.addScope('https://www.googleapis.com/auth/userinfo.email');
 provider.addScope('https://www.googleapis.com/auth/userinfo.profile');
 
-// Force account selection to avoid automatic sign-in issues
+// Force account selection for standard web popup to avoid automatic sign-in issues
 provider.setCustomParameters({
   prompt: 'select_account'
 });
+
+// Configure native Google Auth if it's running in native environment
+if (Capacitor.isNativePlatform()) {
+  GoogleAuth.initialize({
+    clientId: (firebaseConfig as any).clientId || '815669580742-yourclientid.apps.googleusercontent.com',
+    scopes: ['profile', 'email', 'https://www.googleapis.com/auth/gmail.send'],
+    grantOfflineAccess: true,
+  });
+}
 
 let isSigningIn = false;
 let cachedAccessToken: string | null = null;
@@ -32,6 +43,8 @@ export const initAuth = (
       if (cachedAccessToken && cachedEmail) {
         if (onAuthSuccess) onAuthSuccess(user, cachedAccessToken, cachedEmail);
       } else if (!isSigningIn) {
+        // If logged in via standard firebase session persistence but cache is empty,
+        // we reset or keep it active (web flow popup needs token reissue if session is restored).
         cachedAccessToken = null;
         cachedEmail = null;
         if (onAuthFailure) onAuthFailure();
@@ -44,25 +57,52 @@ export const initAuth = (
   });
 };
 
-// Initiate standard Google Sign-In with popup
+// Initiate standard Google Sign-In (Native or Web Popup)
 export const googleSignIn = async (): Promise<{ user: User; accessToken: string; email: string } | null> => {
   try {
     isSigningIn = true;
-    const result = await signInWithPopup(auth, provider);
-    const credential = GoogleAuthProvider.credentialFromResult(result);
     
-    if (!credential?.accessToken) {
-      throw new Error('Failed to retrieve OAuth access token from Google.');
+    if (Capacitor.isNativePlatform()) {
+      // 1. Authenticate natively via Capacitor GoogleAuth Plugin
+      const result = await GoogleAuth.signIn();
+      const accessToken = result.authentication.accessToken;
+      const idToken = result.authentication.idToken;
+      const email = result.email || '';
+
+      if (!accessToken) {
+        throw new Error('Failed to retrieve OAuth access token from native Google sign-in.');
+      }
+
+      cachedAccessToken = accessToken;
+      cachedEmail = email;
+
+      // 2. Transmit credentials to Firebase to unify sessions
+      const credential = GoogleAuthProvider.credential(idToken, accessToken);
+      const fbResult = await signInWithCredential(auth, credential);
+
+      return {
+        user: fbResult.user,
+        accessToken: cachedAccessToken,
+        email: cachedEmail
+      };
+    } else {
+      // Browser-based popup authentication
+      const result = await signInWithPopup(auth, provider);
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      
+      if (!credential?.accessToken) {
+        throw new Error('Failed to retrieve OAuth access token from Google.');
+      }
+
+      cachedAccessToken = credential.accessToken;
+      cachedEmail = result.user.email || null;
+
+      return { 
+        user: result.user, 
+        accessToken: cachedAccessToken, 
+        email: cachedEmail || '' 
+      };
     }
-
-    cachedAccessToken = credential.accessToken;
-    cachedEmail = result.user.email || null;
-
-    return { 
-      user: result.user, 
-      accessToken: cachedAccessToken, 
-      email: cachedEmail || '' 
-    };
   } catch (error: any) {
     console.error('Sign-in failed:', error);
     throw error;
@@ -80,6 +120,13 @@ export const getAuthenticatedEmail = (): string | null => {
 };
 
 export const logout = async () => {
+  if (Capacitor.isNativePlatform()) {
+    try {
+      await GoogleAuth.signOut();
+    } catch (e) {
+      console.warn('Native GoogleAuth signOut warn:', e);
+    }
+  }
   await auth.signOut();
   cachedAccessToken = null;
   cachedEmail = null;
