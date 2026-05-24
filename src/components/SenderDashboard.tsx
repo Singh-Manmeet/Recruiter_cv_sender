@@ -542,7 +542,7 @@ export default function SenderDashboard({
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               rows={6}
-              className="w-full px-3 py-2 text-xs text-slate-800 bg-slate-50/50 border border-slate-200/80 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-150 focus:border-indigo-500 transition-all font-mono leading-relaxed"
+              className="w-full px-3 py-2 text-base md:text-xs text-slate-800 bg-slate-50/50 border border-slate-200/80 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-150 focus:border-indigo-500 transition-all font-mono leading-relaxed"
               placeholder="Paste raw block containing emails here...&#10;e.g., mailto:hr@stripe.com, recruiter@google.com, john.doe@apple.com"
             />
           </div>
@@ -803,7 +803,7 @@ export default function SenderDashboard({
                         type="text"
                         value={currentItem.companyName}
                         onChange={(e) => handleUpdateCompany(currentIndex, e.target.value)}
-                        className="w-full px-2 py-1 text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-md focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-300 font-semibold transition-all"
+                        className="w-full px-2 py-1 text-base md:text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-md focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-300 font-semibold transition-all"
                         placeholder="Company Name"
                       />
                     </div>
@@ -818,7 +818,7 @@ export default function SenderDashboard({
                       type="text"
                       value={currentItem.customSubject || ''}
                       onChange={(e) => handleUpdateSubject(currentIndex, e.target.value)}
-                      className="w-full px-2.5 py-1.5 text-xs text-slate-800 bg-slate-50/50 border border-slate-200 rounded-md focus:bg-white focus:ring-1 focus:ring-indigo-300 focus:outline-none"
+                      className="w-full px-2.5 py-1.5 text-base md:text-xs text-slate-800 bg-slate-50/50 border border-slate-200 rounded-md focus:bg-white focus:ring-1 focus:ring-indigo-300 focus:outline-none"
                     />
                   </div>
 
@@ -834,7 +834,7 @@ export default function SenderDashboard({
                       value={currentItem.customBody || ''}
                       onChange={(e) => handleUpdateBody(currentIndex, e.target.value)}
                       rows={6}
-                      className="w-full px-3 py-2 text-xs text-slate-700 bg-slate-50/50 border border-slate-200 rounded-lg focus:bg-white focus:ring-1 focus:ring-indigo-300 focus:outline-none leading-relaxed font-sans"
+                      className="w-full px-3 py-2 text-base md:text-xs text-slate-700 bg-slate-50/50 border border-slate-200 rounded-lg focus:bg-white focus:ring-1 focus:ring-indigo-300 focus:outline-none leading-relaxed font-sans"
                     />
                   </div>
 

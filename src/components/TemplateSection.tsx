@@ -149,7 +149,7 @@ export default function TemplateSection({ onSettingsChange }: TemplateSectionPro
               type="email"
               value={senderEmail}
               onChange={(e) => setSenderEmail(e.target.value)}
-              className="w-full px-3 py-2 text-sm text-slate-800 bg-slate-50/50 border border-slate-200/80 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-150 focus:border-indigo-500 transition-all font-mono"
+              className="w-full px-3 py-2 text-base md:text-sm text-slate-800 bg-slate-50/50 border border-slate-200/80 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-150 focus:border-indigo-500 transition-all font-mono"
               placeholder="e.g. manmeet.8623@gmail.com"
             />
             <p className="text-[10px] text-slate-400 mt-1">
@@ -230,7 +230,7 @@ export default function TemplateSection({ onSettingsChange }: TemplateSectionPro
                 value={smtpPass}
                 onChange={(e) => setSmtpPass(e.target.value)}
                 placeholder="xxxx xxxx xxxx xxxx"
-                className="w-full px-3 py-1.5 text-xs text-indigo-950 bg-white border border-indigo-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300 transition-all font-mono"
+                className="w-full px-3 py-1.5 text-base md:text-xs text-indigo-950 bg-white border border-indigo-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300 transition-all font-mono"
               />
               <div className="text-[9px] text-indigo-700 leading-normal space-y-1">
                 <p className="font-semibold text-indigo-800">How to get a Gmail App Password (15s):</p>
@@ -269,7 +269,7 @@ export default function TemplateSection({ onSettingsChange }: TemplateSectionPro
               type="text"
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
-              className="w-full px-3.5 py-2 text-sm text-slate-800 bg-slate-50/50 border border-slate-200/80 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-150 focus:border-indigo-500 transition-all font-medium"
+              className="w-full px-3.5 py-2 text-base md:text-sm text-slate-800 bg-slate-50/50 border border-slate-200/80 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-150 focus:border-indigo-500 transition-all font-medium"
               placeholder="Application for..."
             />
           </div>
@@ -282,7 +282,7 @@ export default function TemplateSection({ onSettingsChange }: TemplateSectionPro
               value={body}
               onChange={(e) => setBody(e.target.value)}
               rows={8}
-              className="w-full px-3.5 py-3 text-sm text-slate-800 bg-slate-50/50 border border-slate-200/80 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-150 focus:border-indigo-500 transition-all font-sans leading-relaxed"
+              className="w-full px-3.5 py-3 text-base md:text-sm text-slate-800 bg-slate-50/50 border border-slate-200/80 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-150 focus:border-indigo-500 transition-all font-sans leading-relaxed"
               placeholder="Write your professional email cover letter..."
             />
           </div>

@@ -334,7 +334,7 @@ export default function HistorySection({
           placeholder="Filter logs by email domain, company name, subject..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full bg-transparent text-xs text-slate-800 placeholder-slate-400 border-none outline-none focus:ring-0 focus:outline-none"
+          className="w-full bg-transparent text-base md:text-xs text-slate-800 placeholder-slate-400 border-none outline-none focus:ring-0 focus:outline-none"
         />
         {searchTerm && (
           <button
