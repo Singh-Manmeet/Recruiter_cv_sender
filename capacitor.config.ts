@@ -12,6 +12,7 @@ const config: CapacitorConfig = {
         'https://www.googleapis.com/auth/gmail.send'
       ],
       // This matches standard client-side configuration. The user can override these on local pull.
+      clientId: '815669580742-yourclientid.apps.googleusercontent.com',
       serverClientId: '815669580742-yourclientid.apps.googleusercontent.com',
       forceCodeForRefreshToken: true
     }
