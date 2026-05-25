@@ -17,6 +17,7 @@ import {
 import { AppSettings, RecruiterRecord, ParsedEmailState } from '../types';
 import { extractCompanyName, isValidEmail, getResume } from '../db';
 import { initAuth, googleSignIn, logout } from '../lib/firebaseAuth';
+import { logger } from '../lib/logger';
 
 const getAbsoluteUrl = (path: string): string => {
   if (typeof window !== 'undefined' && (
@@ -81,14 +82,17 @@ export default function SenderDashboard({
 
   const handleOAuthLogin = async () => {
     setIsLoggingIn(true);
+    logger.info('User initiated Sign In with Google.');
     try {
       const result = await googleSignIn();
       if (result) {
         setOauthToken(result.accessToken);
         setOauthEmail(result.email);
+        logger.success(`Google OAuth authorization state active for: ${result.email}`);
       }
     } catch (err: any) {
       console.error(err);
+      logger.error(`OAuth login interaction error: ${err.message || err}`);
       alert(`Google Authentication failed: ${err.message || 'Unknown'}`);
     } finally {
       setIsLoggingIn(false);
@@ -96,9 +100,11 @@ export default function SenderDashboard({
   };
 
   const handleOAuthLogout = async () => {
+    logger.info(`Disconnecting Gmail session for: ${oauthEmail}`);
     await logout();
     setOauthToken(null);
     setOauthEmail(null);
+    logger.success('Gmail session disconnected and tokens purged.');
   };
 
   // Helper: check if email already exists in history
@@ -223,28 +229,34 @@ export default function SenderDashboard({
   const handleSingleBackgroundSend = async (item: ParsedEmailState, index: number) => {
     if (isSingleSending !== null || isBatchSending) return;
     setIsSingleSending(index);
+    logger.info(`Single dispatch triggered for email target: ${item.email}`);
     try {
       if (!isResumeUploaded) {
+        logger.warn('Single dispatch aborted: No PDF CV uploaded.');
         alert('No Resume CV PDF Uploaded! Please upload in Section 1 first.');
         return;
       }
 
       const isOauth = settings.dispatchMethod === 'google_oauth';
       if (isOauth && !oauthToken) {
+        logger.warn('Single OAuth dispatch aborted: No active OAuth authorization.');
         alert('Missing Google Authorization! Please authenticate with your Google account in the active panel below first.');
         return;
       }
       if (!isOauth && !settings.smtpPass) {
+        logger.warn('Single SMTP dispatch aborted: No 16-character App Password entered.');
         alert('Missing Google App Password! Please input your 16-character App Password inside Section 2 settings.');
         return;
       }
 
+      logger.info('Decoding stored CV database PDF contents...');
       const resume = await getResume();
       if (!resume) {
         throw new Error('Could not load stored PDF CV from persistent storage.');
       }
 
       const base64CV = bufferToBase64(resume.data);
+      logger.info(`PDF Decoded. Binary length: ${resume.data.byteLength} bytes. Target URL configuration...`);
 
       const url = isOauth ? getAbsoluteUrl('/api/send-email-oauth') : getAbsoluteUrl('/api/send-email');
       const bodyPayload = isOauth
@@ -273,6 +285,7 @@ export default function SenderDashboard({
             }
           };
 
+      logger.info(`Sending raw payload via fetch to server: ${url}`);
       const response = await fetch(url, {
         method: 'POST',
         headers: {
@@ -285,6 +298,8 @@ export default function SenderDashboard({
       if (!response.ok) {
         throw new Error(result.error || 'Server error.');
       }
+
+      logger.success(`Successfully dispatched single email to recipient: ${item.email}. Message ID: ${result.messageId || 'N/A'}`);
 
       // Mark the item as sent successfully using the chosen sender identity
       const activeSender = isOauth ? (oauthEmail || settings.senderEmail) : settings.senderEmail;
@@ -304,6 +319,7 @@ export default function SenderDashboard({
       alert(`Successfully delivered cover letter to ${item.email}!`);
     } catch (err: any) {
       console.error(err);
+      logger.error(`Single dispatch transaction failed for target ${item.email}: ${err.message || err}`);
       alert(`Background Send Failed: ${err.message}`);
     } finally {
       setIsSingleSending(null);
@@ -623,144 +639,138 @@ export default function SenderDashboard({
                 </div>
               </div>
               
-              {(settings.dispatchMethod === 'background_smtp' || settings.dispatchMethod === 'google_oauth') && (
-                <div className="bg-gradient-to-br from-indigo-900 via-indigo-950 to-slate-950 text-white rounded-2xl p-5 border border-indigo-950 shadow-md space-y-4 animate-in fade-in duration-200">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-sm font-bold tracking-tight text-white flex items-center gap-2">
-                        <span className="flex h-2 w-2 relative">
-                          <span className={`animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 ${isBatchSending ? '' : 'hidden'}`}></span>
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                        </span>
-                        {settings.dispatchMethod === 'google_oauth' ? 'Direct Google API Dispatching' : 'Background Batch Automation'}
-                      </h3>
-                      <p className="text-[10px] text-indigo-200 mt-0.5 font-sans">
-                        {settings.dispatchMethod === 'google_oauth'
-                          ? 'Communicates directly with the Google Gmail API to send attached CV applications seamlessly in the background.'
-                          : 'Delivers custom prefilled emails sequentially in the background from your local personal Gmail account'}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <label className="text-[10px] text-indigo-200 font-semibold flex items-center gap-1.5 cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={skipDuplicates}
-                          disabled={isBatchSending}
-                          onChange={(e) => setSkipDuplicates(e.target.checked)}
-                          className="rounded border-none accent-indigo-600 focus:ring-0 cursor-pointer text-indigo-600 bg-white"
-                        />
-                        Skip Duplicates ({parsedEmails.filter(p => p.isDuplicate).length})
-                      </label>
-                    </div>
+              <div className="bg-gradient-to-br from-indigo-900 via-indigo-950 to-slate-950 text-white rounded-2xl p-5 border border-indigo-950 shadow-md space-y-4 animate-in fade-in duration-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-bold tracking-tight text-white flex items-center gap-2">
+                      <span className="flex h-2 w-2 relative">
+                        <span className={`animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 ${isBatchSending ? '' : 'hidden'}`}></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                      </span>
+                      Direct Google API Dispatching
+                    </h3>
+                    <p className="text-[10px] text-indigo-200 mt-0.5 font-sans">
+                      Communicates directly with the Google Gmail API to send attached CV applications seamlessly in the background.
+                    </p>
                   </div>
-
-                  {/* Google OAuth Segment inside control board */}
-                  {settings.dispatchMethod === 'google_oauth' && (
-                    <div className="bg-white/5 border border-white/10 rounded-xl p-3.5 space-y-3">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div className="space-y-0.5">
-                          <span className="block text-[10px] font-semibold text-indigo-300 uppercase tracking-wider font-mono">Google Auth Status</span>
-                          {oauthToken ? (
-                            <div className="flex items-center gap-1.5">
-                              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                              <span className="text-xs font-bold text-emerald-300 truncate font-mono max-w-[220px]">{oauthEmail || 'Authorized Sender'}</span>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-1.5">
-                              <span className="h-2 w-2 rounded-full bg-amber-400"></span>
-                              <span className="text-xs font-semibold text-amber-200">Not Authorized</span>
-                            </div>
-                          )}
-                        </div>
-                        
-                        {oauthToken ? (
-                          <button
-                            type="button"
-                            onClick={handleOAuthLogout}
-                            className="px-2.5 py-1 text-[10px] bg-white/10 hover:bg-white/15 text-white font-semibold rounded-lg transition-colors cursor-pointer border border-white/5"
-                          >
-                            Disconnect Gmail
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            disabled={isLoggingIn}
-                            onClick={handleOAuthLogin}
-                            className="inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-bold text-slate-900 bg-white hover:bg-slate-100 rounded-lg shadow-sm transition-all active:scale-[0.98] cursor-pointer"
-                          >
-                            <svg className="w-3.5 h-3.5" viewBox="0 0 48 48" style={{ display: 'block' }}>
-                              <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path>
-                              <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"></path>
-                              <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"></path>
-                              <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"></path>
-                              <path fill="none" d="M0 0h48v48H0z"></path>
-                            </svg>
-                            {isLoggingIn ? 'Connecting...' : 'Sign in with Google'}
-                          </button>
-                        )}
-                      </div>
-                      {!oauthToken && (
-                        <p className="text-[9px] text-indigo-300 leading-normal">
-                          By signing in once with Google, you grant temporary permission to securely draft and dispatch your recruiter templates directly over secure Google workspace APIs. No App Passwords or standard passwords are ever transmitted or written.
-                        </p>
-                      )}
-                    </div>
-                  )}
-
-                  {batchError && (
-                    <div className="bg-red-500/10 border border-red-500/30 text-rose-200 text-xs rounded-xl p-3 flex items-start gap-2">
-                      <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-                      <div>
-                        <p className="font-semibold text-white">Execution Issue</p>
-                        <p className="text-[10px] text-rose-200 mt-0.5">{batchError}</p>
-                      </div>
-                    </div>
-                  )}
-
-                  {batchProgress && (
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between text-[10px] text-indigo-200">
-                        <span>Dispatch Progress</span>
-                        <span className="font-mono font-bold text-white">
-                          {batchProgress.current} / {batchProgress.total} emails
-                        </span>
-                      </div>
-                      <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden border border-slate-700/50">
-                        <div
-                          className="bg-gradient-to-r from-emerald-500 to-teal-400 h-full transition-all duration-300"
-                          style={{ width: `${(batchProgress.current / batchProgress.total) * 100}%` }}
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {batchLogs.length > 0 && (
-                    <div className="bg-black/40 border border-slate-800/80 rounded-xl p-3 max-h-[160px] overflow-y-auto font-mono text-[10px] text-indigo-350 space-y-1 scrollbar-thin">
-                      {batchLogs.map((log, lIdx) => (
-                        <div key={lIdx} className={log.includes('❌') ? 'text-rose-400' : log.includes('✓') ? 'text-emerald-400' : 'text-slate-300'}>
-                          {log}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  <div className="flex items-center justify-end gap-3 pt-1">
-                    <button
-                      type="button"
-                      disabled={isBatchSending || (settings.dispatchMethod === 'google_oauth' && !oauthToken)}
-                      onClick={handleBackgroundBatchSend}
-                      className={`inline-flex items-center gap-2 px-6 py-2.5 text-xs font-bold text-white rounded-xl shadow-md transition-all cursor-pointer ${
-                        isBatchSending || (settings.dispatchMethod === 'google_oauth' && !oauthToken)
-                          ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
-                          : 'bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98]'
-                      }`}
-                    >
-                      <Send className="w-4 h-4 animate-pulse" />
-                      {isBatchSending ? 'Sequential Dispatching Live...' : `Launch Background Send (${parsedEmails.filter(p => p.isValid && (!skipDuplicates || !p.isDuplicate)).length} Emails)`}
-                    </button>
+                  <div className="flex items-center gap-2">
+                    <label className="text-[10px] text-indigo-200 font-semibold flex items-center gap-1.5 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={skipDuplicates}
+                        disabled={isBatchSending}
+                        onChange={(e) => setSkipDuplicates(e.target.checked)}
+                        className="rounded border-none accent-indigo-600 focus:ring-0 cursor-pointer text-indigo-600 bg-white"
+                      />
+                      Skip Duplicates ({parsedEmails.filter(p => p.isDuplicate).length})
+                    </label>
                   </div>
                 </div>
-              )}
+
+                {/* Google OAuth Segment inside control board */}
+                <div className="bg-white/5 border border-white/10 rounded-xl p-3.5 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="space-y-0.5">
+                      <span className="block text-[10px] font-semibold text-indigo-300 uppercase tracking-wider font-mono">Google Auth Status</span>
+                      {oauthToken ? (
+                        <div className="flex items-center gap-1.5">
+                          <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                          <span className="text-xs font-bold text-emerald-300 truncate font-mono max-w-[220px]">{oauthEmail || 'Authorized Sender'}</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5">
+                          <span className="h-2 w-2 rounded-full bg-amber-400"></span>
+                          <span className="text-xs font-semibold text-amber-200">Not Authorized</span>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {oauthToken ? (
+                      <button
+                        type="button"
+                        onClick={handleOAuthLogout}
+                        className="px-2.5 py-1 text-[10px] bg-white/10 hover:bg-white/15 text-white font-semibold rounded-lg transition-colors cursor-pointer border border-white/5"
+                      >
+                        Disconnect Gmail
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={isLoggingIn}
+                        onClick={handleOAuthLogin}
+                        className="inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-bold text-slate-900 bg-white hover:bg-slate-100 rounded-lg shadow-sm transition-all active:scale-[0.98] cursor-pointer"
+                      >
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 48 48" style={{ display: 'block' }}>
+                          <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path>
+                          <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"></path>
+                          <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"></path>
+                          <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"></path>
+                          <path fill="none" d="M0 0h48v48H0z"></path>
+                        </svg>
+                        {isLoggingIn ? 'Connecting...' : 'Sign in with Google'}
+                      </button>
+                    )}
+                  </div>
+                  {!oauthToken && (
+                    <p className="text-[9px] text-indigo-300 leading-normal">
+                      By signing in once with Google, you grant temporary permission to securely draft and dispatch your recruiter templates directly over secure Google workspace APIs. No App Passwords or standard passwords are ever transmitted or written.
+                    </p>
+                  )}
+                </div>
+
+                {batchError && (
+                  <div className="bg-red-500/10 border border-red-500/30 text-rose-200 text-xs rounded-xl p-3 flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-semibold text-white">Execution Issue</p>
+                      <p className="text-[10px] text-rose-200 mt-0.5">{batchError}</p>
+                    </div>
+                  </div>
+                )}
+
+                {batchProgress && (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-[10px] text-indigo-200">
+                      <span>Dispatch Progress</span>
+                      <span className="font-mono font-bold text-white">
+                        {batchProgress.current} / {batchProgress.total} emails
+                      </span>
+                    </div>
+                    <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden border border-slate-700/50">
+                      <div
+                        className="bg-gradient-to-r from-emerald-500 to-teal-400 h-full transition-all duration-300"
+                        style={{ width: `${(batchProgress.current / batchProgress.total) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {batchLogs.length > 0 && (
+                  <div className="bg-black/40 border border-slate-800/80 rounded-xl p-3 max-h-[160px] overflow-y-auto font-mono text-[10px] text-indigo-350 space-y-1 scrollbar-thin">
+                    {batchLogs.map((log, lIdx) => (
+                      <div key={lIdx} className={log.includes('❌') ? 'text-rose-400' : log.includes('✓') ? 'text-emerald-400' : 'text-slate-300'}>
+                        {log}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex items-center justify-end gap-3 pt-1">
+                  <button
+                    type="button"
+                    disabled={isBatchSending || !oauthToken}
+                    onClick={handleBackgroundBatchSend}
+                    className={`inline-flex items-center gap-2 px-6 py-2.5 text-xs font-bold text-white rounded-xl shadow-md transition-all cursor-pointer ${
+                      isBatchSending || !oauthToken
+                        ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                        : 'bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98]'
+                    }`}
+                  >
+                    <Send className="w-4 h-4 animate-pulse" />
+                    {isBatchSending ? 'Sequential Dispatching Live...' : `Launch Background Send (${parsedEmails.filter(p => p.isValid && (!skipDuplicates || !p.isDuplicate)).length} Emails)`}
+                  </button>
+                </div>
+              </div>
 
               {/* ACTIVE CARDS VIEW */}
               {currentItem && (
@@ -869,39 +879,17 @@ export default function SenderDashboard({
                         )}
                       </button>
 
-                      {/* Deliver dynamic background SMTP, Google OAuth or default draft deep link */}
-                      {(settings.dispatchMethod === 'background_smtp' || settings.dispatchMethod === 'google_oauth') ? (
-                        <button
-                          type="button"
-                          disabled={isSingleSending !== null || isBatchSending || (settings.dispatchMethod === 'google_oauth' && !oauthToken)}
-                          onClick={() => handleSingleBackgroundSend(currentItem, currentIndex)}
-                          className={`inline-flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm transition-all cursor-pointer ${
-                            isSingleSending === currentIndex ? 'opacity-60 bg-indigo-500 cursor-wait' : ''
-                          } ${(settings.dispatchMethod === 'google_oauth' && !oauthToken) ? 'opacity-50 cursor-not-allowed bg-slate-400 hover:bg-slate-400' : ''}`}
-                        >
-                          <Send className="w-3.5 h-3.5" />
-                          {isSingleSending === currentIndex ? 'Sending...' : 'Send in Background'}
-                        </button>
-                      ) : (
-                        <a
-                          href={buildComposeLink(currentItem)}
-                          target={settings.dispatchMethod === 'native_mailto' ? undefined : '_blank'}
-                          rel={settings.dispatchMethod === 'native_mailto' ? undefined : 'noreferrer'}
-                          onClick={() => {
-                            // Optional automatic local logger to save and advance when clicked
-                            if (confirm(`Do you want to log "${currentItem.email}" as sent to history?`)) {
-                              handleMarkSent(currentItem, currentIndex);
-                            }
-                          }}
-                          className={`inline-flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm transition-all cursor-pointer ${
-                            currentItem.isDuplicate ? 'opacity-55 hover:bg-indigo-600' : ''
-                          }`}
-                        >
-                          <Send className="w-3.5 h-3.5" />
-                          {settings.dispatchMethod === 'native_mailto' ? 'Launch Native Mail' : 'Launch Draft & Track'}
-                          <ExternalLink className="w-3 h-3 opacity-80" />
-                        </a>
-                      )}
+                      <button
+                        type="button"
+                        disabled={isSingleSending !== null || isBatchSending || !oauthToken}
+                        onClick={() => handleSingleBackgroundSend(currentItem, currentIndex)}
+                        className={`inline-flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm transition-all cursor-pointer ${
+                          isSingleSending === currentIndex ? 'opacity-60 bg-indigo-500 cursor-wait' : ''
+                        } ${!oauthToken ? 'opacity-50 cursor-not-allowed bg-slate-400 hover:bg-slate-400' : ''}`}
+                      >
+                        <Send className="w-3.5 h-3.5" />
+                        {isSingleSending === currentIndex ? 'Sending...' : 'Send in Background'}
+                      </button>
 
                       <button
                         type="button"

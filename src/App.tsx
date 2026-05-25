@@ -17,6 +17,11 @@ import TemplateSection from './components/TemplateSection';
 import SenderDashboard from './components/SenderDashboard';
 import HistorySection from './components/HistorySection';
 
+import { Capacitor } from '@capacitor/core';
+import { App as NativeApp } from '@capacitor/app';
+import { logger } from './lib/logger';
+import DebugLogConsole from './components/DebugLogConsole';
+
 export default function App() {
   const [isResumeUploaded, setIsResumeUploaded] = useState<boolean>(false);
   const [history, setHistory] = useState<RecruiterRecord[]>([]);
@@ -24,6 +29,24 @@ export default function App() {
     senderEmail: 'manmeet.8623@gmail.com',
     defaultTemplate: { subject: '', body: '' }
   });
+
+  // Listen for native URL open events (Capacitor deep-linking redirects)
+  useEffect(() => {
+    logger.info('Application master component mounted.');
+    if (Capacitor.isNativePlatform()) {
+      logger.info('Capacitor native environment detected. Registering native URL schemes...');
+      try {
+        const handlerPromise = NativeApp.addListener('appUrlOpen', (data: { url: string }) => {
+          logger.info(`Native custom URL-Scheme landing intercepted: ${data.url}`);
+        });
+        return () => {
+          handlerPromise.then(h => h.remove());
+        };
+      } catch (e: any) {
+        logger.error(`Error registering native URL listener: ${e?.message || e}`);
+      }
+    }
+  }, []);
 
   // Load history on mount
   useEffect(() => {
@@ -143,6 +166,9 @@ export default function App() {
           onClearAll={handleClearAllHistory}
           onSyncHistory={handleSyncHistory}
         />
+
+        {/* System & Native Diagnostic Logs view */}
+        <DebugLogConsole />
 
         {/* Pure Professional aesthetic footer */}
         <footer className="mt-12 text-center text-xs text-slate-400 font-mono flex items-center justify-center gap-1.5 pb-4 border-t border-slate-100 pt-6">

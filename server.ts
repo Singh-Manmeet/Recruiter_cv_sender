@@ -1,5 +1,6 @@
 import express from 'express';
 import path from 'path';
+import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 import nodemailer from 'nodemailer';
 
@@ -10,6 +11,29 @@ async function startServer() {
   // Middleware to support incoming JSON payloads up to 15MB for base64 CV transmission
   app.use(express.json({ limit: '15mb' }));
   app.use(express.urlencoded({ extended: true, limit: '15mb' }));
+
+  // API Route: Write runtime logs from phone/simulator to debug-app.log in the project root
+  app.post('/api/write-log', (req, res) => {
+    const { timestamp, level, message, meta } = req.body;
+    if (!message) {
+      res.status(400).json({ error: 'Missing log message.' });
+      return;
+    }
+
+    const logLine = `[${timestamp || new Date().toISOString()}] [${(level || 'info').toUpperCase()}] ${message}${meta ? ' | Meta: ' + JSON.stringify(meta) : ''}\n`;
+    
+    // Path to debug-app.log in the workspace root
+    const logFilePath = path.join(process.cwd(), 'debug-app.log');
+    
+    fs.appendFile(logFilePath, logLine, (err) => {
+      if (err) {
+        console.error('Failed to write to debug-app.log:', err);
+        res.status(500).json({ error: 'Failed to write log line.' });
+      } else {
+        res.json({ success: true });
+      }
+    });
+  });
 
   // API Route: Send single email dynamically via Nodemailer
   app.post('/api/send-email', async (req, res) => {
