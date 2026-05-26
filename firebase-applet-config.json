@@ -1,9 +1,8 @@
 {
-  "projectId": "fifth-coil-0w532",
-  "appId": "1:983677597789:web:b9e851732cbe3781ee35b4",
-  "apiKey": "AIzaSyDRlar1gv33aNdI5awS8LVogEfOuMYe1zE",
-  "authDomain": "fifth-coil-0w532.firebaseapp.com",
-  "storageBucket": "fifth-coil-0w532.firebasestorage.app",
-  "messagingSenderId": "983677597789",
-  "measurementId": ""
+  "apiKey": "AIzaSyCEpQvK3EQBPTWWyNl2uQiezuQ_7cXO_yM",
+  "authDomain": "resume-sender-e280f.firebaseapp.com",
+  "projectId": "resume-sender-e280f",
+  "storageBucket": "resume-sender-e280f.firebasestorage.app",
+  "messagingSenderId": "1070969801706",
+  "appId": "1:1070969801706:ios:155abf546cda5c69ab0093"
 }

@@ -25,7 +25,7 @@ provider.setCustomParameters({
 if (Capacitor.isNativePlatform()) {
   logger.info('Capacitor native platform detected. Initializing native Google Auth SDK...');
   GoogleAuth.initialize({
-    clientId: (firebaseConfig as any).clientId || '815669580742-yourclientid.apps.googleusercontent.com',
+    clientId: (firebaseConfig as any).clientId || '1070969801706-di65q47mjpk5hoi2185oajcmo0obuqp9.apps.googleusercontent.com',
     scopes: ['profile', 'email', 'https://www.googleapis.com/auth/gmail.send'],
     grantOfflineAccess: true,
   });
@@ -86,16 +86,41 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string;
       cachedAccessToken = accessToken;
       cachedEmail = email;
 
-      logger.info('Transmitting native credentials to Firebase Auth...');
-      // 2. Transmit credentials to Firebase to unify sessions
-      const credential = GoogleAuthProvider.credential(idToken, accessToken);
-      const fbResult = await signInWithCredential(auth, credential);
-      logger.success('Firebase unified local session synchronized.');
+      // logger.info('Transmitting native credentials to Firebase Auth...');
+      // // 2. Transmit credentials to Firebase to unify sessions
+      // const credential = GoogleAuthProvider.credential(idToken, accessToken);
+      // const fbResult = await signInWithCredential(auth, credential);
+      // logger.success('Firebase unified local session synchronized.');
 
+      // return {
+      //   user: fbResult.user,
+      //   accessToken: cachedAccessToken,
+      //   email: cachedEmail
+      // };
+      logger.success('Native sign-in complete. Skipping Firebase credential sync for native platform.');
+      // Return mock user object since we only need the accessToken for Gmail API
       return {
-        user: fbResult.user,
+        user: {
+          email: email,
+          emailVerified: true,
+          isAnonymous: false,
+          metadata: {},
+          providerData: [],
+          refreshToken: '',
+          tenantId: null,
+          uid: email,
+          displayName: null,
+          phoneNumber: null,
+          photoURL: null,
+          providerId: 'google.com',
+          delete: async () => { },
+          getIdToken: async () => accessToken,
+          getIdTokenResult: async () => ({} as any),
+          reload: async () => { },
+          toJSON: () => ({})
+        } as any,
         accessToken: cachedAccessToken,
-        email: cachedEmail
+        email: cachedEmail || ''
       };
     } else {
       logger.info('Opening standard web auth popup for Google Sign-In...');

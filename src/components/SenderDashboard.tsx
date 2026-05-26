@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Users, 
-  Send, 
-  ExternalLink, 
-  Copy, 
-  AlertTriangle, 
+import {
+  Users,
+  Send,
+  ExternalLink,
+  Copy,
+  AlertTriangle,
   CheckCircle,
-  FileDown, 
+  FileDown,
   HelpCircle,
   Clock,
   X,
@@ -19,17 +19,6 @@ import { extractCompanyName, isValidEmail, getResume } from '../db';
 import { initAuth, googleSignIn, logout } from '../lib/firebaseAuth';
 import { logger } from '../lib/logger';
 
-const getAbsoluteUrl = (path: string): string => {
-  if (typeof window !== 'undefined' && (
-    window.location.origin.includes('capacitor://') || 
-    window.location.origin.includes('app://') || 
-    !window.location.origin.includes('localhost')
-  )) {
-    return `https://ais-dev-6xmvfw4eu3sxvbwrb7fool-815669580742.asia-southeast1.run.app${path}`;
-  }
-  return path;
-};
-
 interface SenderDashboardProps {
   settings: AppSettings;
   history: RecruiterRecord[];
@@ -37,17 +26,17 @@ interface SenderDashboardProps {
   onAddRecruiters: (records: RecruiterRecord[]) => void;
 }
 
-export default function SenderDashboard({ 
-  settings, 
-  history, 
+export default function SenderDashboard({
+  settings,
+  history,
   isResumeUploaded,
-  onAddRecruiters 
+  onAddRecruiters
 }: SenderDashboardProps) {
   const [inputText, setInputText] = useState('');
   const [parsedEmails, setParsedEmails] = useState<ParsedEmailState[]>([]);
   const [currentIndex, setCurrentIndex] = useState<number>(0);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
-  const [activeTab, setActiveTab ] = useState<'bulk' | 'wizard'>('bulk');
+  const [activeTab, setActiveTab] = useState<'bulk' | 'wizard'>('bulk');
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   // Background Batch States
@@ -63,7 +52,7 @@ export default function SenderDashboard({
   const [oauthEmail, setOauthEmail] = useState<string | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-  // Initialize Auth state listner
+  // Initialize Auth state listener
   useEffect(() => {
     const unsub = initAuth(
       (user, token, email) => {
@@ -119,11 +108,8 @@ export default function SenderDashboard({
       return;
     }
 
-    // RegEx to pull email-looking strings from freeform pasted block
     const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
     const foundEmails = (inputText.match(emailRegex) || []) as string[];
-    
-    // De-duplicate parsed emails in the current batch
     const uniqueBatch = Array.from(new Set(foundEmails.map(e => e.toLowerCase().trim())));
 
     const parsed: ParsedEmailState[] = uniqueBatch.map((email: string) => {
@@ -131,7 +117,6 @@ export default function SenderDashboard({
       const company = extractCompanyName(email);
       const dupRecord = findInHistory(email);
 
-      // Interpolate templates preview
       let sub = settings.defaultTemplate.subject.replace(/{company}/g, company);
       let bodyText = settings.defaultTemplate.body
         .replace(/{company}/g, company)
@@ -152,7 +137,6 @@ export default function SenderDashboard({
     setCurrentIndex(0);
   };
 
-  // Re-parse when inputs or history list updates
   useEffect(() => {
     handleParseEmails();
   }, [inputText, history, settings]);
@@ -172,14 +156,11 @@ export default function SenderDashboard({
   const handleUpdateCompany = (index: number, val: string) => {
     const updated = [...parsedEmails];
     updated[index].companyName = val;
-    
-    // re-trigger standard resolution of placeholders unless user manually typed stuff
     const cName = val || 'Company';
     updated[index].customSubject = settings.defaultTemplate.subject.replace(/{company}/g, cName);
     updated[index].customBody = settings.defaultTemplate.body
       .replace(/{company}/g, cName)
       .replace(/{name}/g, updated[index].email.split('@')[0]);
-
     setParsedEmails(updated);
   };
 
@@ -191,7 +172,6 @@ export default function SenderDashboard({
     }
   };
 
-  // Downloads the CV in case they need it right before launching Gmail
   const downloadCVHelper = async () => {
     try {
       const resume = await getResume();
@@ -214,7 +194,7 @@ export default function SenderDashboard({
     }
   };
 
-  // Helper: Convert ArrayBuffer/Uint8Array to base64 string safely
+  // Helper: Convert ArrayBuffer to base64
   const bufferToBase64 = (buffer: ArrayBuffer): string => {
     let binary = '';
     const bytes = new Uint8Array(buffer);
@@ -225,7 +205,73 @@ export default function SenderDashboard({
     return window.btoa(binary);
   };
 
-  // Triggers one-by-one background SMTP or Google OAuth sending
+  // Build a base64url-encoded RFC 2822 MIME email with PDF attachment
+  // This is the format Gmail API expects in the `raw` field
+  const buildGmailRawMessage = (
+    to: string,
+    subject: string,
+    body: string,
+    attachmentName: string,
+    attachmentBase64: string
+  ): string => {
+    const boundary = 'boundary_' + Math.random().toString(36).substr(2);
+    const mime = [
+      `To: ${to}`,
+      `Subject: ${subject}`,
+      'MIME-Version: 1.0',
+      `Content-Type: multipart/mixed; boundary="${boundary}"`,
+      '',
+      `--${boundary}`,
+      'Content-Type: text/plain; charset=UTF-8',
+      '',
+      body,
+      '',
+      `--${boundary}`,
+      `Content-Type: application/pdf; name="${attachmentName}"`,
+      'Content-Transfer-Encoding: base64',
+      `Content-Disposition: attachment; filename="${attachmentName}"`,
+      '',
+      attachmentBase64,
+      `--${boundary}--`
+    ].join('\r\n');
+
+    // base64url encode (Gmail API requirement)
+    return btoa(unescape(encodeURIComponent(mime)))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+  };
+
+  // Send a single email directly via Gmail API (no backend needed)
+  const sendViaGmailAPI = async (
+    to: string,
+    subject: string,
+    body: string,
+    attachmentName: string,
+    attachmentBase64: string
+  ): Promise<string> => {
+    const rawMessage = buildGmailRawMessage(to, subject, body, attachmentName, attachmentBase64);
+
+    const response = await fetch(
+      'https://gmail.googleapis.com/gmail/v1/users/me/messages/send',
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${oauthToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ raw: rawMessage })
+      }
+    );
+
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error?.message || 'Gmail API error.');
+    }
+    return result.id || 'OK';
+  };
+
+  // Single background send — directly to Gmail API
   const handleSingleBackgroundSend = async (item: ParsedEmailState, index: number) => {
     if (isSingleSending !== null || isBatchSending) return;
     setIsSingleSending(index);
@@ -237,118 +283,68 @@ export default function SenderDashboard({
         return;
       }
 
-      const isOauth = settings.dispatchMethod === 'google_oauth';
-      if (isOauth && !oauthToken) {
+      if (!oauthToken) {
         logger.warn('Single OAuth dispatch aborted: No active OAuth authorization.');
-        alert('Missing Google Authorization! Please authenticate with your Google account in the active panel below first.');
-        return;
-      }
-      if (!isOauth && !settings.smtpPass) {
-        logger.warn('Single SMTP dispatch aborted: No 16-character App Password entered.');
-        alert('Missing Google App Password! Please input your 16-character App Password inside Section 2 settings.');
+        alert('Missing Google Authorization! Please sign in with Google first.');
         return;
       }
 
       logger.info('Decoding stored CV database PDF contents...');
       const resume = await getResume();
-      if (!resume) {
-        throw new Error('Could not load stored PDF CV from persistent storage.');
-      }
+      if (!resume) throw new Error('Could not load stored PDF CV from persistent storage.');
 
       const base64CV = bufferToBase64(resume.data);
-      logger.info(`PDF Decoded. Binary length: ${resume.data.byteLength} bytes. Target URL configuration...`);
+      logger.info(`PDF Decoded. ${resume.data.byteLength} bytes. Calling Gmail API directly...`);
 
-      const url = isOauth ? getAbsoluteUrl('/api/send-email-oauth') : getAbsoluteUrl('/api/send-email');
-      const bodyPayload = isOauth
-        ? {
-            accessToken: oauthToken,
-            senderEmail: oauthEmail || settings.senderEmail,
-            to: item.email,
-            subject: item.customSubject || '',
-            body: item.customBody || '',
-            attachment: {
-              name: resume.name,
-              type: 'application/pdf',
-              data: base64CV
-            }
-          }
-        : {
-            smtpUser: settings.senderEmail,
-            smtpPass: settings.smtpPass,
-            to: item.email,
-            subject: item.customSubject || '',
-            body: item.customBody || '',
-            attachment: {
-              name: resume.name,
-              type: 'application/pdf',
-              data: base64CV
-            }
-          };
+      const messageId = await sendViaGmailAPI(
+        item.email,
+        item.customSubject || '',
+        item.customBody || '',
+        resume.name,
+        base64CV
+      );
 
-      logger.info(`Sending raw payload via fetch to server: ${url}`);
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(bodyPayload)
-      });
+      logger.success(`Successfully dispatched email to: ${item.email}. Message ID: ${messageId}`);
 
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.error || 'Server error.');
-      }
-
-      logger.success(`Successfully dispatched single email to recipient: ${item.email}. Message ID: ${result.messageId || 'N/A'}`);
-
-      // Mark the item as sent successfully using the chosen sender identity
-      const activeSender = isOauth ? (oauthEmail || settings.senderEmail) : settings.senderEmail;
       const newRecord: RecruiterRecord = {
         id: crypto.randomUUID(),
         email: item.email,
         companyName: item.companyName,
         sentAt: new Date().toISOString(),
-        senderEmail: activeSender,
+        senderEmail: oauthEmail || '',
         subject: item.customSubject || '',
         body: item.customBody || ''
       };
-      
+
       onAddRecruiters([newRecord]);
       handleRemoveItem(index);
-
       alert(`Successfully delivered cover letter to ${item.email}!`);
+
     } catch (err: any) {
       console.error(err);
-      logger.error(`Single dispatch transaction failed for target ${item.email}: ${err.message || err}`);
-      alert(`Background Send Failed: ${err.message}`);
+      logger.error(`Single dispatch failed for ${item.email}: ${err.message || err}`);
+      alert(`Send Failed: ${err.message}`);
     } finally {
       setIsSingleSending(null);
     }
   };
 
-  // Triggers professional background automatic batch dispatching over secure channel
+  // Batch send — directly to Gmail API, no backend
   const handleBackgroundBatchSend = async () => {
     if (isBatchSending) return;
     setBatchError(null);
     setBatchLogs([]);
 
-    // 1. Safety Checks
     if (!isResumeUploaded) {
       setBatchError('No Resume Uploaded! Please upload your PDF CV in Section 1 before dispatching.');
       return;
     }
 
-    const isOauth = settings.dispatchMethod === 'google_oauth';
-    if (isOauth && !oauthToken) {
-      setBatchError('Missing Google Authorization! Please click "Sign in with Google" in the console below to authorize SMTP-free transmission.');
-      return;
-    }
-    if (!isOauth && settings.dispatchMethod === 'background_smtp' && !settings.smtpPass) {
-      setBatchError('Missing App Password! Please open Section 2 and enter your 16-character Google App Password first.');
+    if (!oauthToken) {
+      setBatchError('Missing Google Authorization! Please click "Sign in with Google" first.');
       return;
     }
 
-    // Filter target queue items
     const targets = parsedEmails.filter(item => {
       if (!item.isValid) return false;
       if (skipDuplicates && item.isDuplicate) return false;
@@ -356,11 +352,11 @@ export default function SenderDashboard({
     });
 
     if (targets.length === 0) {
-      setBatchError('No valid, unique recruiters found in current queue. Check if some are marked as duplicates or invalid!');
+      setBatchError('No valid, unique recruiters found in current queue.');
       return;
     }
 
-    if (!window.confirm(`Are you ready to sequentially dispatch ${targets.length} custom cover letter emails to their target recipients in the background?`)) {
+    if (!window.confirm(`Are you ready to sequentially dispatch ${targets.length} cover letter emails?`)) {
       return;
     }
 
@@ -375,13 +371,11 @@ export default function SenderDashboard({
     try {
       addLog('Loading stored PDF Resume CV from memory...');
       const resume = await getResume();
-      if (!resume) {
-        throw new Error('Could not retrieve uploaded PDF CV from storage.');
-      }
+      if (!resume) throw new Error('Could not retrieve uploaded PDF CV from storage.');
       addLog(`✓ Resume Loaded: "${resume.name}" (${(resume.data.byteLength / 1024).toFixed(1)} KB)`);
 
       const base64CV = bufferToBase64(resume.data);
-      addLog(`CV Base64 conversion successful. Initializing ${isOauth ? 'Google API OAuth' : 'SMTP'} background queue...`);
+      addLog('CV Base64 conversion successful. Initializing direct Gmail API queue...');
 
       const succeededRecords: RecruiterRecord[] = [];
       const processesToRemove: string[] = [];
@@ -389,82 +383,45 @@ export default function SenderDashboard({
       for (let i = 0; i < targets.length; i++) {
         const item = targets[i];
         setBatchProgress({ current: i + 1, total: targets.length });
-        addLog(`[${i + 1}/${targets.length}] Dispatching cover letter email to ${item.email}...`);
+        addLog(`[${i + 1}/${targets.length}] Dispatching to ${item.email}...`);
 
         try {
-          const url = isOauth ? getAbsoluteUrl('/api/send-email-oauth') : getAbsoluteUrl('/api/send-email');
-          const bodyPayload = isOauth
-            ? {
-                accessToken: oauthToken,
-                senderEmail: oauthEmail || settings.senderEmail,
-                to: item.email,
-                subject: item.customSubject || '',
-                body: item.customBody || '',
-                attachment: {
-                  name: resume.name,
-                  type: 'application/pdf',
-                  data: base64CV
-                }
-              }
-            : {
-                smtpUser: settings.senderEmail,
-                smtpPass: settings.smtpPass,
-                to: item.email,
-                subject: item.customSubject || '',
-                body: item.customBody || '',
-                attachment: {
-                  name: resume.name,
-                  type: 'application/pdf',
-                  data: base64CV
-                }
-              };
+          const messageId = await sendViaGmailAPI(
+            item.email,
+            item.customSubject || '',
+            item.customBody || '',
+            resume.name,
+            base64CV
+          );
 
-          const response = await fetch(url, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(bodyPayload)
-          });
+          addLog(`  ↳ ✓ Success! Message ID: ${messageId}`);
 
-          const result = await response.json();
-
-          if (!response.ok) {
-            throw new Error(result.error || 'Server rejected SMTP transmission.');
-          }
-
-          addLog(`  ↳ ✓ Success! Message ID: ${result.messageId || 'OK'}`);
-          
-          // Construct success history records
           const newRecord: RecruiterRecord = {
             id: crypto.randomUUID(),
             email: item.email,
             companyName: item.companyName,
             sentAt: new Date().toISOString(),
-            senderEmail: isOauth ? (oauthEmail || settings.senderEmail) : settings.senderEmail,
+            senderEmail: oauthEmail || '',
             subject: item.customSubject || '',
             body: item.customBody || ''
           };
           succeededRecords.push(newRecord);
           processesToRemove.push(item.email);
 
-          // Give a short 500ms delay between sending to respect rate limiting guidelines
+          // Respect Gmail rate limits
           await new Promise(resolve => setTimeout(resolve, 500));
 
         } catch (singleErr: any) {
           const errMsg = singleErr.message || 'Transmission failed.';
           addLog(`  ↳ ❌ Error sending to ${item.email}: ${errMsg}`);
-          // Stop batching on key credential issues, or let them skip
-          if (errMsg.includes('Authentication Failed') || errMsg.includes('credentials') || errMsg.includes('expired')) {
-            throw new Error(`Authentication issues identified. Batch halted: ${errMsg}`);
+          if (errMsg.includes('invalid_grant') || errMsg.includes('Invalid Credentials') || errMsg.includes('expired')) {
+            throw new Error(`Auth token expired. Please sign in again. Batch halted.`);
           }
         }
       }
 
-      // 4. Persistence Integration
       if (succeededRecords.length > 0) {
         onAddRecruiters(succeededRecords);
-        // Clear successfully sent emails from parsing block
         const remaining = parsedEmails.filter(item => !processesToRemove.includes(item.email));
         setParsedEmails(remaining);
         setCurrentIndex(0);
@@ -472,7 +429,7 @@ export default function SenderDashboard({
       }
 
       addLog(`🎉 Batch Completed! Successful delivery: ${succeededRecords.length}/${targets.length}`);
-      setSuccessMsg(`Background automation completed: successfully sent CV emails to ${succeededRecords.length} recruiters!`);
+      setSuccessMsg(`Sent CV emails to ${succeededRecords.length} recruiters!`);
       setTimeout(() => setSuccessMsg(null), 5000);
 
     } catch (batchErr: any) {
@@ -484,7 +441,6 @@ export default function SenderDashboard({
     }
   };
 
-  // Prefills subject, to, body depending on chosen protocol (web deep-link vs native mailto)
   const buildComposeLink = (item: ParsedEmailState): string => {
     const to = encodeURIComponent(item.email);
     const subject = encodeURIComponent(item.customSubject || '');
@@ -514,8 +470,6 @@ export default function SenderDashboard({
     };
 
     onAddRecruiters([newRecord]);
-    
-    // Remove from the temporary list
     handleRemoveItem(index);
     setSuccessMsg(`Logged sent application to ${item.email}!`);
     setTimeout(() => setSuccessMsg(null), 3000);
@@ -544,9 +498,8 @@ export default function SenderDashboard({
         </div>
       )}
 
-      {/* Grid: Instructions vs Input */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
+
         {/* Recruiter Input Side (Left) */}
         <div className="lg:col-span-4 flex flex-col space-y-4">
           <div>
@@ -563,7 +516,6 @@ export default function SenderDashboard({
             />
           </div>
 
-          {/* Quick instructions guide */}
           <div className="bg-gradient-to-tr from-slate-50 to-indigo-50/30 rounded-xl p-4 border border-slate-100 text-xs text-slate-600 space-y-3">
             <h4 className="font-semibold text-slate-700 flex items-center gap-1.5">
               <HelpCircle className="w-3.5 h-3.5 text-indigo-500" />
@@ -609,13 +561,11 @@ export default function SenderDashboard({
             </div>
           ) : (
             <div className="space-y-4">
-              {/* Status Header of buffer lists */}
               <div className="flex items-center justify-between border-b border-indigo-100/30 pb-3">
                 <span className="text-xs font-semibold text-slate-700 font-mono">
                   Recruiter Buffer List ({parsedEmails.length} found)
                 </span>
-                
-                {/* Micro pagination selector */}
+
                 <div className="flex items-center gap-1 shadow-xs border border-slate-200 rounded-lg bg-white p-0.5">
                   {parsedEmails.map((_, index) => {
                     const isDup = parsedEmails[index].isDuplicate;
@@ -623,13 +573,12 @@ export default function SenderDashboard({
                       <button
                         key={index}
                         onClick={() => setCurrentIndex(index)}
-                        className={`w-6 h-6 rounded text-[10px] font-mono flex items-center justify-center transition-all cursor-pointer ${
-                          currentIndex === index
-                            ? 'bg-indigo-600 text-white font-bold'
-                            : isDup 
+                        className={`w-6 h-6 rounded text-[10px] font-mono flex items-center justify-center transition-all cursor-pointer ${currentIndex === index
+                          ? 'bg-indigo-600 text-white font-bold'
+                          : isDup
                             ? 'bg-rose-50 text-rose-600 hover:bg-rose-100/60 border border-rose-150'
                             : 'text-slate-600 hover:bg-slate-100'
-                        }`}
+                          }`}
                         title={parsedEmails[index].email}
                       >
                         {index + 1}
@@ -638,7 +587,7 @@ export default function SenderDashboard({
                   })}
                 </div>
               </div>
-              
+
               <div className="bg-gradient-to-br from-indigo-900 via-indigo-950 to-slate-950 text-white rounded-2xl p-5 border border-indigo-950 shadow-md space-y-4 animate-in fade-in duration-200">
                 <div className="flex items-center justify-between">
                   <div>
@@ -667,7 +616,7 @@ export default function SenderDashboard({
                   </div>
                 </div>
 
-                {/* Google OAuth Segment inside control board */}
+                {/* Google OAuth Segment */}
                 <div className="bg-white/5 border border-white/10 rounded-xl p-3.5 space-y-3">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="space-y-0.5">
@@ -684,7 +633,7 @@ export default function SenderDashboard({
                         </div>
                       )}
                     </div>
-                    
+
                     {oauthToken ? (
                       <button
                         type="button"
@@ -760,11 +709,10 @@ export default function SenderDashboard({
                     type="button"
                     disabled={isBatchSending || !oauthToken}
                     onClick={handleBackgroundBatchSend}
-                    className={`inline-flex items-center gap-2 px-6 py-2.5 text-xs font-bold text-white rounded-xl shadow-md transition-all cursor-pointer ${
-                      isBatchSending || !oauthToken
-                        ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
-                        : 'bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98]'
-                    }`}
+                    className={`inline-flex items-center gap-2 px-6 py-2.5 text-xs font-bold text-white rounded-xl shadow-md transition-all cursor-pointer ${isBatchSending || !oauthToken
+                      ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                      : 'bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98]'
+                      }`}
                   >
                     <Send className="w-4 h-4 animate-pulse" />
                     {isBatchSending ? 'Sequential Dispatching Live...' : `Launch Background Send (${parsedEmails.filter(p => p.isValid && (!skipDuplicates || !p.isDuplicate)).length} Emails)`}
@@ -775,7 +723,6 @@ export default function SenderDashboard({
               {/* ACTIVE CARDS VIEW */}
               {currentItem && (
                 <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs relative animate-fade-in space-y-4">
-                  {/* Warning Badge for duplicates */}
                   {currentItem.isDuplicate ? (
                     <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl p-3 flex items-start gap-2.5">
                       <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
@@ -790,7 +737,6 @@ export default function SenderDashboard({
                     </div>
                   ) : null}
 
-                  {/* Header metadata row */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pb-3 border-b border-slate-100">
                     <div>
                       <span className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5 font-mono">
@@ -819,7 +765,6 @@ export default function SenderDashboard({
                     </div>
                   </div>
 
-                  {/* Subject Input */}
                   <div>
                     <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1 font-mono">
                       Subject
@@ -832,7 +777,6 @@ export default function SenderDashboard({
                     />
                   </div>
 
-                  {/* Body Content */}
                   <div>
                     <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1 font-mono flex items-center justify-between">
                       <span>Cover Letter Body</span>
@@ -848,7 +792,6 @@ export default function SenderDashboard({
                     />
                   </div>
 
-                  {/* Dispatcher Actions Footer for current active queue item */}
                   <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100">
                     <button
                       type="button"
@@ -883,9 +826,8 @@ export default function SenderDashboard({
                         type="button"
                         disabled={isSingleSending !== null || isBatchSending || !oauthToken}
                         onClick={() => handleSingleBackgroundSend(currentItem, currentIndex)}
-                        className={`inline-flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm transition-all cursor-pointer ${
-                          isSingleSending === currentIndex ? 'opacity-60 bg-indigo-500 cursor-wait' : ''
-                        } ${!oauthToken ? 'opacity-50 cursor-not-allowed bg-slate-400 hover:bg-slate-400' : ''}`}
+                        className={`inline-flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm transition-all cursor-pointer ${isSingleSending === currentIndex ? 'opacity-60 bg-indigo-500 cursor-wait' : ''
+                          } ${!oauthToken ? 'opacity-50 cursor-not-allowed bg-slate-400 hover:bg-slate-400' : ''}`}
                       >
                         <Send className="w-3.5 h-3.5" />
                         {isSingleSending === currentIndex ? 'Sending...' : 'Send in Background'}
