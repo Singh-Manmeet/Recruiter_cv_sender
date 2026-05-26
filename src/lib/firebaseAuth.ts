@@ -26,7 +26,7 @@ provider.setCustomParameters({
 if (Capacitor.isNativePlatform()) {
   logger.info('Capacitor native platform detected. Initializing native Google Auth SDK...');
   GoogleAuth.initialize({
-    clientId: (firebaseConfig as any).clientId || '815669580742-yourclientid.apps.googleusercontent.com',
+    clientId: '1070969801706-di65q47mjpk5hoi2185oajcmo0obuqp9.apps.googleusercontent.com',
     scopes: ['profile', 'email', 'https://www.googleapis.com/auth/gmail.send'],
     grantOfflineAccess: true,
   });
