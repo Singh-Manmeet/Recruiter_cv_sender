@@ -94,9 +94,12 @@ export const initAuth = (
     }
   };
 
-  loadSavedSession();
+  const savedSessionPromise = loadSavedSession();
 
   const unsubFirebase = onAuthStateChanged(auth, async (user: User | null) => {
+    // Wait for stored session tokens to be retrieved from local preferences before executing Firebase auth checks
+    await savedSessionPromise;
+
     // Only apply standard Firebase flow on web to prevent native hanging issues
     if (!Capacitor.isNativePlatform()) {
       if (user) {

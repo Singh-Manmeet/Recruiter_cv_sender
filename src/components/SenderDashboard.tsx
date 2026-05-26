@@ -112,6 +112,20 @@ export default function SenderDashboard({
     return history.find(record => record.email.toLowerCase().trim() === email.toLowerCase().trim());
   };
 
+  // Helper: check how many emails have been sent today
+  const getSentTodayCount = (): number => {
+    const todayStr = new Date().toDateString();
+    return history.filter(record => {
+      try {
+        return new Date(record.sentAt).toDateString() === todayStr;
+      } catch {
+        return false;
+      }
+    }).length;
+  };
+
+  const sentToday = getSentTodayCount();
+
   // Extract and parse emails when text inputs change
   const handleParseEmails = () => {
     if (!inputText.trim()) {
@@ -593,8 +607,15 @@ export default function SenderDashboard({
           succeededRecords.push(newRecord);
           processesToRemove.push(item.email);
 
-          // Give a short 500ms delay between sending to respect rate limiting guidelines
-          await new Promise(resolve => setTimeout(resolve, 500));
+          // If we have more emails ahead, apply a random 1-9 seconds delay for bulk sends
+          if (targets.length > 1 && i < targets.length - 1) {
+            const randomDelaySeconds = Math.floor(Math.random() * 9) + 1;
+            addLog(`  ↳ Pause: Waiting ${randomDelaySeconds} seconds to behave organically and avoid spam filters...`);
+            await new Promise(resolve => setTimeout(resolve, randomDelaySeconds * 1000));
+          } else {
+            // Minimal pause of 500ms for safety on single/last email
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
 
         } catch (singleErr: any) {
           const errMsg = singleErr.message || 'Transmission failed.';
@@ -606,15 +627,16 @@ export default function SenderDashboard({
         }
       }
 
-      // 4. Persistence Integration
+      // 4. Persistence Integration and Input Sync
       if (succeededRecords.length > 0) {
         onAddRecruiters(succeededRecords);
-        // Clear successfully sent emails from parsing block
-        const remaining = parsedEmails.filter(item => !processesToRemove.includes(item.email));
-        setParsedEmails(remaining);
-        setCurrentIndex(0);
-        setInputText(remaining.map(r => r.email).join(', '));
       }
+
+      // Sync active queue and input field for remaining failed or unsent items
+      const remaining = parsedEmails.filter(item => !processesToRemove.includes(item.email));
+      setParsedEmails(remaining);
+      setCurrentIndex(0);
+      setInputText(remaining.map(r => r.email).join(', '));
 
       addLog(`🎉 Batch Completed! Successful delivery: ${succeededRecords.length}/${targets.length}`);
       setSuccessMsg(`Background automation completed: successfully sent CV emails to ${succeededRecords.length} recruiters!`);
@@ -811,6 +833,30 @@ export default function SenderDashboard({
                     </label>
                   </div>
                 </div>
+
+                {/* Daily Sender Counter & Cap notification banner */}
+                <div className="flex items-center justify-between bg-white/5 border border-white/5 rounded-xl px-3.5 py-2">
+                  <span className="text-[10px] font-semibold text-indigo-300 uppercase tracking-wider font-mono">
+                    Daily Sender Log
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-bold text-white font-mono bg-white/10 px-2.5 py-0.5 rounded-md">
+                      {sentToday} {sentToday === 1 ? 'email' : 'emails'} sent today
+                    </span>
+                  </div>
+                </div>
+
+                {sentToday >= 20 && (
+                  <div className="bg-amber-500/10 border border-amber-500/35 text-amber-200 text-[11px] rounded-xl p-3 flex items-start gap-2.5">
+                    <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-semibold text-white">Daily Limit Alert (20+ Sends Crossed)</p>
+                      <p className="text-[10px] text-amber-200 mt-0.5 leading-relaxed">
+                        You have dispatched {sentToday} resume emails today! You are completely free to continue sending beyond this notify cap, but keep in mind that spreading cold emails in larger numbers is best paced naturally.
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 {/* Google OAuth Segment inside control board */}
                 <div className="bg-white/5 border border-white/10 rounded-xl p-3.5 space-y-3">
