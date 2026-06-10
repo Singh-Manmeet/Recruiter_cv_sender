@@ -24,17 +24,14 @@ const getAbsoluteUrl = (path: string, apiUrlOverride?: string): string => {
     const base = apiUrlOverride.endsWith('/') ? apiUrlOverride.slice(0, -1) : apiUrlOverride;
     return `${base}${path}`;
   }
-  if (typeof window !== 'undefined' && (
-    window.location.origin.includes('capacitor://') || 
-    window.location.origin.includes('app://') || 
-    !window.location.origin.includes('localhost')
-  )) {
-    if (window.location.origin && window.location.origin.startsWith('https://')) {
-      return `${window.location.origin}${path}`;
+  if (typeof window !== 'undefined') {
+    const origin = window.location.origin;
+    if (origin && (origin.startsWith('http://') || origin.startsWith('https://'))) {
+      return `${origin}${path}`;
     }
-    return `https://ais-dev-6xmvfw4eu3sxvbwrb7fool-815669580742.asia-southeast1.run.app${path}`;
   }
-  return path;
+  // Native Capacitor / iOS Wrapper fallback
+  return `https://ais-pre-6xmvfw4eu3sxvbwrb7fool-815669580742.asia-southeast1.run.app${path}`;
 };
 
 interface SenderDashboardProps {
@@ -302,6 +299,7 @@ export default function SenderDashboard({
       logger.info(`PDF Decoded. Binary length: ${resume.data.byteLength} bytes. Dispatching email...`);
 
       const url = getAbsoluteUrl('/api/send-email', settings.apiUrlOverride);
+      logger.info(`Sending POST request to: ${url}`);
       const bodyPayload = {
         smtpUser: settings.senderEmail,
         smtpPass: settings.smtpPass,
@@ -315,13 +313,19 @@ export default function SenderDashboard({
         }
       };
 
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(bodyPayload)
-      });
+      let response;
+      try {
+        response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(bodyPayload)
+        });
+      } catch (connErr: any) {
+        console.error('Fetch execution threw error:', connErr);
+        throw new Error(`Load failed calling server at "${url}". Please ensure your Cloud Run backend is awake and active, or try manually specifying your full application Shared App URL in Section 2 settings.`);
+      }
 
       if (!response.ok) {
         const errRes = await response.json();
@@ -422,6 +426,7 @@ export default function SenderDashboard({
 
         try {
           const url = getAbsoluteUrl('/api/send-email', settings.apiUrlOverride);
+          addLog(`  ↳ POST request initiated to: ${url}`);
           const bodyPayload = {
             smtpUser: settings.senderEmail,
             smtpPass: settings.smtpPass,
@@ -435,13 +440,19 @@ export default function SenderDashboard({
             }
           };
 
-          const response = await fetch(url, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(bodyPayload)
-          });
+          let response;
+          try {
+            response = await fetch(url, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(bodyPayload)
+            });
+          } catch (connErr: any) {
+            console.error('Batch fetch execution threw error:', connErr);
+            throw new Error(`Connection failed to server at "${url}". Please verify your cloud server is online or enter your custom app's Shared App URL in Section 2.`);
+          }
 
           if (!response.ok) {
             const errRes = await response.json();
