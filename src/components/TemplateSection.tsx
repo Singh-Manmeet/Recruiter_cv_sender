@@ -19,11 +19,11 @@ I have attached my resume (PDF format) for your consideration. Over the past few
 Could we schedule a brief call this week to explore how I can support your goals? Thank you so much for your time and review.
 
 Best regards,
-Manmeet Simran
-Email: manmeet.8623@gmail.com`;
+Monty
+Email: monty201339@gmail.com`;
 
 export default function TemplateSection({ onSettingsChange }: TemplateSectionProps) {
-  const [senderEmail, setSenderEmail] = useState('manmeet.8623@gmail.com');
+  const [senderEmail, setSenderEmail] = useState('monty201339@gmail.com');
   const [subject, setSubject] = useState(DEFAULT_SUBJECT);
   const [body, setBody] = useState(DEFAULT_BODY);
   const [dispatchMethod, setDispatchMethod] = useState<'gmail_web' | 'native_mailto' | 'background_smtp' | 'google_oauth'>('background_smtp');
@@ -38,14 +38,14 @@ export default function TemplateSection({ onSettingsChange }: TemplateSectionPro
     if (saved) {
       try {
         const parsed = JSON.parse(saved) as AppSettings;
-        setSenderEmail(parsed.senderEmail || 'manmeet.8623@gmail.com');
+        setSenderEmail(parsed.senderEmail || 'monty201339@gmail.com');
         setSubject(parsed.defaultTemplate?.subject || DEFAULT_SUBJECT);
         setBody(parsed.defaultTemplate?.body || DEFAULT_BODY);
         setDispatchMethod('background_smtp');
         setSmtpPass(parsed.smtpPass || 'gisrrnzjjazncaoc');
         setApiUrlOverride(parsed.apiUrlOverride || '');
         onSettingsChange({
-          senderEmail: parsed.senderEmail || 'manmeet.8623@gmail.com',
+          senderEmail: parsed.senderEmail || 'monty201339@gmail.com',
           defaultTemplate: parsed.defaultTemplate || { subject: DEFAULT_SUBJECT, body: DEFAULT_BODY },
           dispatchMethod: 'background_smtp',
           smtpPass: parsed.smtpPass || 'gisrrnzjjazncaoc',
@@ -57,7 +57,7 @@ export default function TemplateSection({ onSettingsChange }: TemplateSectionPro
     } else {
       // Setup defaults
       const initial: AppSettings = {
-        senderEmail: 'manmeet.8623@gmail.com',
+        senderEmail: 'monty201339@gmail.com',
         defaultTemplate: { subject: DEFAULT_SUBJECT, body: DEFAULT_BODY },
         dispatchMethod: 'background_smtp',
         smtpPass: 'gisrrnzjjazncaoc',
@@ -92,13 +92,13 @@ export default function TemplateSection({ onSettingsChange }: TemplateSectionPro
     if (window.confirm('Are you sure you want to revert to default templates?')) {
       setSubject(DEFAULT_SUBJECT);
       setBody(DEFAULT_BODY);
-      setSenderEmail('manmeet.8623@gmail.com');
+      setSenderEmail('monty201339@gmail.com');
       setDispatchMethod('background_smtp');
       setSmtpPass('gisrrnzjjazncaoc');
       setApiUrlOverride('');
       
       const updated: AppSettings = {
-        senderEmail: 'manmeet.8623@gmail.com',
+        senderEmail: 'monty201339@gmail.com',
         defaultTemplate: { subject: DEFAULT_SUBJECT, body: DEFAULT_BODY },
         dispatchMethod: 'background_smtp',
         smtpPass: 'gisrrnzjjazncaoc',
@@ -169,7 +169,7 @@ export default function TemplateSection({ onSettingsChange }: TemplateSectionPro
               value={senderEmail}
               onChange={(e) => setSenderEmail(e.target.value)}
               className="w-full px-3 py-2 text-base md:text-sm text-slate-800 bg-slate-50/50 border border-slate-200/80 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-150 focus:border-indigo-500 transition-all font-mono"
-              placeholder="e.g. manmeet.8623@gmail.com"
+              placeholder="e.g. monty201339@gmail.com"
             />
             <p className="text-[10px] text-slate-400 mt-1">
               Your default sender email ID, editable anytime

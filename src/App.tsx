@@ -26,7 +26,7 @@ export default function App() {
   const [isResumeUploaded, setIsResumeUploaded] = useState<boolean>(false);
   const [history, setHistory] = useState<RecruiterRecord[]>([]);
   const [settings, setSettings] = useState<AppSettings>({
-    senderEmail: 'manmeet.8623@gmail.com',
+    senderEmail: 'monty201339@gmail.com',
     defaultTemplate: { subject: '', body: '' }
   });
 
