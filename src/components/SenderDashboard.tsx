@@ -19,12 +19,19 @@ import { AppSettings, RecruiterRecord, ParsedEmailState } from '../types';
 import { extractCompanyName, isValidEmail, getResume } from '../db';
 import { logger } from '../lib/logger';
 
-const getAbsoluteUrl = (path: string): string => {
+const getAbsoluteUrl = (path: string, apiUrlOverride?: string): string => {
+  if (apiUrlOverride && apiUrlOverride.trim()) {
+    const base = apiUrlOverride.endsWith('/') ? apiUrlOverride.slice(0, -1) : apiUrlOverride;
+    return `${base}${path}`;
+  }
   if (typeof window !== 'undefined' && (
     window.location.origin.includes('capacitor://') || 
     window.location.origin.includes('app://') || 
     !window.location.origin.includes('localhost')
   )) {
+    if (window.location.origin && window.location.origin.startsWith('https://')) {
+      return `${window.location.origin}${path}`;
+    }
     return `https://ais-dev-6xmvfw4eu3sxvbwrb7fool-815669580742.asia-southeast1.run.app${path}`;
   }
   return path;
@@ -294,7 +301,7 @@ export default function SenderDashboard({
       const base64CV = bufferToBase64(resume.data);
       logger.info(`PDF Decoded. Binary length: ${resume.data.byteLength} bytes. Dispatching email...`);
 
-      const url = getAbsoluteUrl('/api/send-email');
+      const url = getAbsoluteUrl('/api/send-email', settings.apiUrlOverride);
       const bodyPayload = {
         smtpUser: settings.senderEmail,
         smtpPass: settings.smtpPass,
@@ -414,7 +421,7 @@ export default function SenderDashboard({
         addLog(`[${i + 1}/${targets.length}] Dispatching cover letter email to ${item.email}...`);
 
         try {
-          const url = getAbsoluteUrl('/api/send-email');
+          const url = getAbsoluteUrl('/api/send-email', settings.apiUrlOverride);
           const bodyPayload = {
             smtpUser: settings.senderEmail,
             smtpPass: settings.smtpPass,

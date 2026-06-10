@@ -28,6 +28,7 @@ export default function TemplateSection({ onSettingsChange }: TemplateSectionPro
   const [body, setBody] = useState(DEFAULT_BODY);
   const [dispatchMethod, setDispatchMethod] = useState<'gmail_web' | 'native_mailto' | 'background_smtp' | 'google_oauth'>('background_smtp');
   const [smtpPass, setSmtpPass] = useState('');
+  const [apiUrlOverride, setApiUrlOverride] = useState('');
   const [isSaved, setIsSaved] = useState(false);
   const isLoaded = useRef(false);
 
@@ -42,11 +43,13 @@ export default function TemplateSection({ onSettingsChange }: TemplateSectionPro
         setBody(parsed.defaultTemplate?.body || DEFAULT_BODY);
         setDispatchMethod('background_smtp');
         setSmtpPass(parsed.smtpPass || '');
+        setApiUrlOverride(parsed.apiUrlOverride || '');
         onSettingsChange({
           senderEmail: parsed.senderEmail || 'manmeet.8623@gmail.com',
           defaultTemplate: parsed.defaultTemplate || { subject: DEFAULT_SUBJECT, body: DEFAULT_BODY },
           dispatchMethod: 'background_smtp',
-          smtpPass: parsed.smtpPass || ''
+          smtpPass: parsed.smtpPass || '',
+          apiUrlOverride: parsed.apiUrlOverride || ''
         });
       } catch (err) {
         console.error('Failed to parse settings:', err);
@@ -57,7 +60,8 @@ export default function TemplateSection({ onSettingsChange }: TemplateSectionPro
         senderEmail: 'manmeet.8623@gmail.com',
         defaultTemplate: { subject: DEFAULT_SUBJECT, body: DEFAULT_BODY },
         dispatchMethod: 'background_smtp',
-        smtpPass: ''
+        smtpPass: '',
+        apiUrlOverride: ''
       };
       onSettingsChange(initial);
     }
@@ -72,11 +76,12 @@ export default function TemplateSection({ onSettingsChange }: TemplateSectionPro
       senderEmail,
       defaultTemplate: { subject, body },
       dispatchMethod: 'background_smtp',
-      smtpPass
+      smtpPass,
+      apiUrlOverride
     };
     localStorage.setItem('resume_sender_settings', JSON.stringify(updated));
     onSettingsChange(updated);
-  }, [senderEmail, subject, body, smtpPass]);
+  }, [senderEmail, subject, body, smtpPass, apiUrlOverride]);
 
   const handleSave = () => {
     setIsSaved(true);
@@ -90,12 +95,14 @@ export default function TemplateSection({ onSettingsChange }: TemplateSectionPro
       setSenderEmail('manmeet.8623@gmail.com');
       setDispatchMethod('background_smtp');
       setSmtpPass('');
+      setApiUrlOverride('');
       
       const updated: AppSettings = {
         senderEmail: 'manmeet.8623@gmail.com',
         defaultTemplate: { subject: DEFAULT_SUBJECT, body: DEFAULT_BODY },
         dispatchMethod: 'background_smtp',
-        smtpPass: ''
+        smtpPass: '',
+        apiUrlOverride: ''
       };
       localStorage.setItem('resume_sender_settings', JSON.stringify(updated));
       onSettingsChange(updated);
@@ -193,6 +200,22 @@ export default function TemplateSection({ onSettingsChange }: TemplateSectionPro
               />
               <p className="text-[9.5px] text-slate-500 leading-tight">
                 Enable Google Account 2-Step verification, search for <strong>"App Passwords"</strong> on Google settings, and paste the 16-character code.
+              </p>
+            </div>
+
+            <div className="space-y-1 pt-1.5 border-t border-indigo-100/40">
+              <label className="block text-[9px] font-bold text-slate-700 uppercase tracking-wide">
+                API Delivery Server URL (Optional):
+              </label>
+              <input
+                type="text"
+                value={apiUrlOverride}
+                onChange={(e) => setApiUrlOverride(e.target.value.trim())}
+                className="w-full px-3 py-1.5 text-base md:text-[11px] text-slate-800 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-150 focus:border-indigo-500 font-mono"
+                placeholder="e.g. https://ais-pre-...run.app"
+              />
+              <p className="text-[9.5px] text-slate-500 leading-tight">
+                For native iOS/Android simulators or when hosting on custom domains, override the destination API backend. Leave blank to auto-detect.
               </p>
             </div>
           </div>

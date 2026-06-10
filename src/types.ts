@@ -12,6 +12,7 @@ export interface AppSettings {
   defaultTemplate: EmailTemplate;
   dispatchMethod: 'gmail_web' | 'native_mailto' | 'background_smtp' | 'google_oauth';
   smtpPass?: string;
+  apiUrlOverride?: string;
 }
 
 export interface RecruiterRecord {
