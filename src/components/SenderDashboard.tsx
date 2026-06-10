@@ -949,11 +949,11 @@ export default function SenderDashboard({
                 <div className="flex items-center justify-end gap-3 pt-1">
                   <button
                     type="button"
-                    disabled={isBatchSending || !oauthToken}
+                    disabled={isBatchSending || (settings.dispatchMethod === 'google_oauth' && !oauthToken)}
                     onClick={handleBackgroundBatchSend}
                     className={`inline-flex items-center gap-2 px-6 py-2.5 text-xs font-bold text-white rounded-xl shadow-md transition-all cursor-pointer ${
-                      isBatchSending || !oauthToken
-                        ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                      isBatchSending || (settings.dispatchMethod === 'google_oauth' && !oauthToken)
+                        ? 'bg-slate-800 text-slate-500 cursor-not-allowed opacity-60'
                         : 'bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98]'
                     }`}
                   >
@@ -1072,11 +1072,11 @@ export default function SenderDashboard({
 
                       <button
                         type="button"
-                        disabled={isSingleSending !== null || isBatchSending || !oauthToken}
+                        disabled={isSingleSending !== null || isBatchSending || (settings.dispatchMethod === 'google_oauth' && !oauthToken)}
                         onClick={() => handleSingleBackgroundSend(currentItem, currentIndex)}
                         className={`inline-flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm transition-all cursor-pointer ${
                           isSingleSending === currentIndex ? 'opacity-60 bg-indigo-500 cursor-wait' : ''
-                        } ${!oauthToken ? 'opacity-50 cursor-not-allowed bg-slate-400 hover:bg-slate-400' : ''}`}
+                        } ${(settings.dispatchMethod === 'google_oauth' && !oauthToken) ? 'opacity-50 cursor-not-allowed bg-slate-400 hover:bg-slate-400' : ''}`}
                       >
                         <Send className="w-3.5 h-3.5" />
                         {isSingleSending === currentIndex ? 'Sending...' : 'Send in Background'}
