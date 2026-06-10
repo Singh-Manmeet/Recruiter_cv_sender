@@ -8,6 +8,7 @@ import {
   CheckCircle,
   FileDown, 
   HelpCircle,
+
   Clock,
   X,
   MailWarning,
@@ -16,7 +17,6 @@ import {
 } from 'lucide-react';
 import { AppSettings, RecruiterRecord, ParsedEmailState } from '../types';
 import { extractCompanyName, isValidEmail, getResume } from '../db';
-import { initAuth, googleSignIn, logout, silentReauth } from '../lib/firebaseAuth';
 import { logger } from '../lib/logger';
 
 const getAbsoluteUrl = (path: string): string => {
@@ -57,55 +57,6 @@ export default function SenderDashboard({
   const [batchLogs, setBatchLogs] = useState<string[]>([]);
   const [batchError, setBatchError] = useState<string | null>(null);
   const [skipDuplicates, setSkipDuplicates] = useState(true);
-
-  // Google OAuth Auth State
-  const [oauthToken, setOauthToken] = useState<string | null>(null);
-  const [oauthEmail, setOauthEmail] = useState<string | null>(null);
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
-
-  // Initialize Auth state listner
-  useEffect(() => {
-    const unsub = initAuth(
-      (user, token, email) => {
-        setOauthToken(token);
-        setOauthEmail(email);
-      },
-      () => {
-        setOauthToken(null);
-        setOauthEmail(null);
-      }
-    );
-    return () => {
-      unsub();
-    };
-  }, []);
-
-  const handleOAuthLogin = async () => {
-    setIsLoggingIn(true);
-    logger.info('User initiated Sign In with Google.');
-    try {
-      const result = await googleSignIn();
-      if (result) {
-        setOauthToken(result.accessToken);
-        setOauthEmail(result.email);
-        logger.success(`Google OAuth authorization state active for: ${result.email}`);
-      }
-    } catch (err: any) {
-      console.error(err);
-      logger.error(`OAuth login interaction error: ${err.message || err}`);
-      alert(`Google Authentication failed: ${err.message || 'Unknown'}`);
-    } finally {
-      setIsLoggingIn(false);
-    }
-  };
-
-  const handleOAuthLogout = async () => {
-    logger.info(`Disconnecting Gmail session for: ${oauthEmail}`);
-    await logout();
-    setOauthToken(null);
-    setOauthEmail(null);
-    logger.success('Gmail session disconnected and tokens purged.');
-  };
 
   // Helper: check if email already exists in history
   const findInHistory = (email: string): RecruiterRecord | undefined => {
@@ -316,7 +267,7 @@ export default function SenderDashboard({
     return { messageId: data.id || 'N/A' };
   };
 
-  // Triggers one-by-one background SMTP or Google OAuth sending
+  // Triggers one-by-one background SMTP sending
   const handleSingleBackgroundSend = async (item: ParsedEmailState, index: number) => {
     if (isSingleSending !== null || isBatchSending) return;
     setIsSingleSending(index);
@@ -328,13 +279,7 @@ export default function SenderDashboard({
         return;
       }
 
-      const isOauth = settings.dispatchMethod === 'google_oauth';
-      if (isOauth && !oauthToken) {
-        logger.warn('Single OAuth dispatch aborted: No active OAuth authorization.');
-        alert('Missing Google Authorization! Please authenticate with your Google account in the active panel below first.');
-        return;
-      }
-      if (!isOauth && !settings.smtpPass) {
+      if (!settings.smtpPass) {
         logger.warn('Single SMTP dispatch aborted: No 16-character App Password entered.');
         alert('Missing Google App Password! Please input your 16-character App Password inside Section 2 settings.');
         return;
@@ -349,89 +294,43 @@ export default function SenderDashboard({
       const base64CV = bufferToBase64(resume.data);
       logger.info(`PDF Decoded. Binary length: ${resume.data.byteLength} bytes. Dispatching email...`);
 
-      let result;
-      if (isOauth) {
-        logger.info(`Initiating direct client-side Gmail API send to ${item.email}...`);
-        try {
-          result = await sendViaGmailAPI(
-            oauthToken!,
-            oauthEmail || settings.senderEmail,
-            item.email,
-            item.customSubject || '',
-            item.customBody || '',
-            resume.name,
-            base64CV
-          );
-        } catch (apiErr: any) {
-          const isAuthErr = apiErr.message?.toLowerCase().includes('expired') || 
-                            apiErr.message?.toLowerCase().includes('401') || 
-                            apiErr.message?.toLowerCase().includes('invalid') ||
-                            apiErr.message?.toLowerCase().includes('auth');
-
-          if (isAuthErr) {
-            logger.warn('Gmail API authorization failed. Attempting silent token renewal...');
-            const newToken = await silentReauth();
-            if (newToken) {
-              logger.success('Silent refresh succeeded. Retrying dispatch with fresh active token...');
-              setOauthToken(newToken);
-              result = await sendViaGmailAPI(
-                newToken,
-                oauthEmail || settings.senderEmail,
-                item.email,
-                item.customSubject || '',
-                item.customBody || '',
-                resume.name,
-                base64CV
-              );
-            } else {
-              setOauthToken(null);
-              setOauthEmail(null);
-              throw new Error('Google Sign-In session has expired and silent refresh failed. Manual re-login required.');
-            }
-          } else {
-            throw apiErr;
-          }
+      const url = getAbsoluteUrl('/api/send-email');
+      const bodyPayload = {
+        smtpUser: settings.senderEmail,
+        smtpPass: settings.smtpPass,
+        to: item.email,
+        subject: item.customSubject || '',
+        body: item.customBody || '',
+        attachment: {
+          name: resume.name,
+          type: 'application/pdf',
+          data: base64CV
         }
-      } else {
-        const url = getAbsoluteUrl('/api/send-email');
-        const bodyPayload = {
-          smtpUser: settings.senderEmail,
-          smtpPass: settings.smtpPass,
-          to: item.email,
-          subject: item.customSubject || '',
-          body: item.customBody || '',
-          attachment: {
-            name: resume.name,
-            type: 'application/pdf',
-            data: base64CV
-          }
-        };
+      };
 
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(bodyPayload)
-        });
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(bodyPayload)
+      });
 
-        if (!response.ok) {
-          const errRes = await response.json();
-          throw new Error(errRes.error || 'SMTP delivery server error.');
-        }
-        result = await response.json();
+      if (!response.ok) {
+        const errRes = await response.json();
+        throw new Error(errRes.error || 'SMTP delivery server error.');
       }
+      const result = await response.json();
 
       logger.success(`Successfully dispatched single email to recipient: ${item.email}. Message ID: ${result.messageId || 'N/A'}`);
 
       // Mark the item as sent successfully using the chosen sender identity
-      const activeSender = isOauth ? (oauthEmail || settings.senderEmail) : settings.senderEmail;
       const newRecord: RecruiterRecord = {
         id: crypto.randomUUID(),
         email: item.email,
         companyName: item.companyName,
         sentAt: new Date().toISOString(),
-        senderEmail: activeSender,
+        senderEmail: settings.senderEmail,
         subject: item.customSubject || '',
         body: item.customBody || ''
       };
@@ -466,12 +365,7 @@ export default function SenderDashboard({
       return;
     }
 
-    const isOauth = settings.dispatchMethod === 'google_oauth';
-    if (isOauth && !oauthToken) {
-      setBatchError('Missing Google Authorization! Please click "Sign in with Google" in the console below to authorize SMTP-free transmission.');
-      return;
-    }
-    if (!isOauth && settings.dispatchMethod === 'background_smtp' && !settings.smtpPass) {
+    if (!settings.smtpPass) {
       setBatchError('Missing App Password! Please open Section 2 and enter your 16-character Google App Password first.');
       return;
     }
@@ -509,7 +403,7 @@ export default function SenderDashboard({
       addLog(`✓ Resume Loaded: "${resume.name}" (${(resume.data.byteLength / 1024).toFixed(1)} KB)`);
 
       const base64CV = bufferToBase64(resume.data);
-      addLog(`CV Base64 conversion successful. Initializing ${isOauth ? 'Direct Gmail API' : 'SMTP'} background queue...`);
+      addLog(`CV Base64 conversion successful. Initializing SMTP background queue...`);
 
       const succeededRecords: RecruiterRecord[] = [];
       const processesToRemove: string[] = [];
@@ -520,77 +414,33 @@ export default function SenderDashboard({
         addLog(`[${i + 1}/${targets.length}] Dispatching cover letter email to ${item.email}...`);
 
         try {
-          let result;
-          if (isOauth) {
-            try {
-              result = await sendViaGmailAPI(
-                oauthToken!,
-                oauthEmail || settings.senderEmail,
-                item.email,
-                item.customSubject || '',
-                item.customBody || '',
-                resume.name,
-                base64CV
-              );
-            } catch (apiErr: any) {
-              const isAuthErr = apiErr.message?.toLowerCase().includes('expired') || 
-                                apiErr.message?.toLowerCase().includes('401') || 
-                                apiErr.message?.toLowerCase().includes('invalid') ||
-                                apiErr.message?.toLowerCase().includes('auth');
-
-              if (isAuthErr) {
-                addLog('  ↳ ⚠️ Auth expired. Attempting background silent renewal...');
-                const newToken = await silentReauth();
-                if (newToken) {
-                  addLog('  ↳ ✓ Token renewed silently! Resuming dispatch...');
-                  setOauthToken(newToken);
-                  result = await sendViaGmailAPI(
-                    newToken,
-                    oauthEmail || settings.senderEmail,
-                    item.email,
-                    item.customSubject || '',
-                    item.customBody || '',
-                    resume.name,
-                    base64CV
-                  );
-                } else {
-                  setOauthToken(null);
-                  setOauthEmail(null);
-                  throw new Error('OAuth Silent re-auth failed. Google session revoked.');
-                }
-              } else {
-                throw apiErr;
-              }
+          const url = getAbsoluteUrl('/api/send-email');
+          const bodyPayload = {
+            smtpUser: settings.senderEmail,
+            smtpPass: settings.smtpPass,
+            to: item.email,
+            subject: item.customSubject || '',
+            body: item.customBody || '',
+            attachment: {
+              name: resume.name,
+              type: 'application/pdf',
+              data: base64CV
             }
-          } else {
-            const url = getAbsoluteUrl('/api/send-email');
-            const bodyPayload = {
-              smtpUser: settings.senderEmail,
-              smtpPass: settings.smtpPass,
-              to: item.email,
-              subject: item.customSubject || '',
-              body: item.customBody || '',
-              attachment: {
-                name: resume.name,
-                type: 'application/pdf',
-                data: base64CV
-              }
-            };
+          };
 
-            const response = await fetch(url, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify(bodyPayload)
-            });
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(bodyPayload)
+          });
 
-            if (!response.ok) {
-              const errRes = await response.json();
-              throw new Error(errRes.error || 'SMTP delivery server error.');
-            }
-            result = await response.json();
+          if (!response.ok) {
+            const errRes = await response.json();
+            throw new Error(errRes.error || 'SMTP delivery server error.');
           }
+          const result = await response.json();
 
           addLog(`  ↳ ✓ Success! Message ID: ${result.messageId || 'OK'}`);
           
@@ -600,7 +450,7 @@ export default function SenderDashboard({
             email: item.email,
             companyName: item.companyName,
             sentAt: new Date().toISOString(),
-            senderEmail: isOauth ? (oauthEmail || settings.senderEmail) : settings.senderEmail,
+            senderEmail: settings.senderEmail,
             subject: item.customSubject || '',
             body: item.customBody || ''
           };
@@ -810,14 +660,14 @@ export default function SenderDashboard({
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="text-sm font-bold tracking-tight text-white flex items-center gap-2">
-                      <span className="flex h-2 w-2 relative">
-                        <span className={`animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 ${isBatchSending ? '' : 'hidden'}`}></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                      </span>
-                      Direct Google API Dispatching
+                       <span className="flex h-2 w-2 relative">
+                         <span className={`animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 ${isBatchSending ? '' : 'hidden'}`}></span>
+                         <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                       </span>
+                      Direct Google App Password SMTP Sending
                     </h3>
                     <p className="text-[10px] text-indigo-200 mt-0.5 font-sans">
-                      Communicates directly with the Google Gmail API to send attached CV applications seamlessly in the background.
+                      Performs highly secure individual back-to-back delivery of templates directly in the background.
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -858,55 +708,20 @@ export default function SenderDashboard({
                   </div>
                 )}
 
-                {/* Google OAuth Segment inside control board */}
-                <div className="bg-white/5 border border-white/10 rounded-xl p-3.5 space-y-3">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="space-y-0.5">
-                      <span className="block text-[10px] font-semibold text-indigo-300 uppercase tracking-wider font-mono">Google Auth Status</span>
-                      {oauthToken ? (
-                        <div className="flex items-center gap-1.5">
-                          <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                          <span className="text-xs font-bold text-emerald-300 truncate font-mono max-w-[220px]">{oauthEmail || 'Authorized Sender'}</span>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-1.5">
-                          <span className="h-2 w-2 rounded-full bg-amber-400"></span>
-                          <span className="text-xs font-semibold text-amber-200">Not Authorized</span>
-                        </div>
-                      )}
-                    </div>
-                    
-                    {oauthToken ? (
-                      <button
-                        type="button"
-                        onClick={handleOAuthLogout}
-                        className="px-2.5 py-1 text-[10px] bg-white/10 hover:bg-white/15 text-white font-semibold rounded-lg transition-colors cursor-pointer border border-white/5"
-                      >
-                        Disconnect Gmail
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        disabled={isLoggingIn}
-                        onClick={handleOAuthLogin}
-                        className="inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-bold text-slate-900 bg-white hover:bg-slate-100 rounded-lg shadow-sm transition-all active:scale-[0.98] cursor-pointer"
-                      >
-                        <svg className="w-3.5 h-3.5" viewBox="0 0 48 48" style={{ display: 'block' }}>
-                          <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path>
-                          <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"></path>
-                          <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"></path>
-                          <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"></path>
-                          <path fill="none" d="M0 0h48v48H0z"></path>
-                        </svg>
-                        {isLoggingIn ? 'Connecting...' : 'Sign in with Google'}
-                      </button>
-                    )}
+                <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-3.5 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="block text-[10px] font-semibold text-emerald-300 uppercase tracking-wider font-mono">App Password Dispatch</span>
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-bold text-emerald-200 bg-emerald-500/25 rounded-md">
+                      ✓ SECURE OFFLINE ACTIVE
+                    </span>
                   </div>
-                  {!oauthToken && (
-                    <p className="text-[9px] text-indigo-300 leading-normal">
-                      By signing in once with Google, you grant temporary permission to securely draft and dispatch your recruiter templates directly over secure Google workspace APIs. No App Passwords or standard passwords are ever transmitted or written.
-                    </p>
-                  )}
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <p className="text-xs font-semibold text-white">Using private credentials: {settings.senderEmail}</p>
+                  </div>
+                  <p className="text-[9.5px] text-slate-300 leading-normal">
+                    Bypasses temporal Google OAuth screens entirely. Leverages your 16-character secure Google App Password persistent SMTP pipeline to ensure your recruiter mails transmit smoothly and never expire!
+                  </p>
                 </div>
 
                 {batchError && (
@@ -949,10 +764,10 @@ export default function SenderDashboard({
                 <div className="flex items-center justify-end gap-3 pt-1">
                   <button
                     type="button"
-                    disabled={isBatchSending || (settings.dispatchMethod === 'google_oauth' && !oauthToken)}
+                    disabled={isBatchSending}
                     onClick={handleBackgroundBatchSend}
                     className={`inline-flex items-center gap-2 px-6 py-2.5 text-xs font-bold text-white rounded-xl shadow-md transition-all cursor-pointer ${
-                      isBatchSending || (settings.dispatchMethod === 'google_oauth' && !oauthToken)
+                      isBatchSending
                         ? 'bg-slate-800 text-slate-500 cursor-not-allowed opacity-60'
                         : 'bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98]'
                     }`}
@@ -1072,11 +887,11 @@ export default function SenderDashboard({
 
                       <button
                         type="button"
-                        disabled={isSingleSending !== null || isBatchSending || (settings.dispatchMethod === 'google_oauth' && !oauthToken)}
+                        disabled={isSingleSending !== null || isBatchSending}
                         onClick={() => handleSingleBackgroundSend(currentItem, currentIndex)}
                         className={`inline-flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm transition-all cursor-pointer ${
                           isSingleSending === currentIndex ? 'opacity-60 bg-indigo-500 cursor-wait' : ''
-                        } ${(settings.dispatchMethod === 'google_oauth' && !oauthToken) ? 'opacity-50 cursor-not-allowed bg-slate-400 hover:bg-slate-400' : ''}`}
+                        }`}
                       >
                         <Send className="w-3.5 h-3.5" />
                         {isSingleSending === currentIndex ? 'Sending...' : 'Send in Background'}

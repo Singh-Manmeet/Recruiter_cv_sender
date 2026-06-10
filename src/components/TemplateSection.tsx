@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Mail, FileText, Settings, RefreshCw, Save, Check } from 'lucide-react';
 import { AppSettings } from '../types';
 
@@ -26,9 +26,10 @@ export default function TemplateSection({ onSettingsChange }: TemplateSectionPro
   const [senderEmail, setSenderEmail] = useState('manmeet.8623@gmail.com');
   const [subject, setSubject] = useState(DEFAULT_SUBJECT);
   const [body, setBody] = useState(DEFAULT_BODY);
-  const [dispatchMethod, setDispatchMethod] = useState<'gmail_web' | 'native_mailto' | 'background_smtp' | 'google_oauth'>('google_oauth');
+  const [dispatchMethod, setDispatchMethod] = useState<'gmail_web' | 'native_mailto' | 'background_smtp' | 'google_oauth'>('background_smtp');
   const [smtpPass, setSmtpPass] = useState('');
   const [isSaved, setIsSaved] = useState(false);
+  const isLoaded = useRef(false);
 
   // Load from local storage
   useEffect(() => {
@@ -39,12 +40,12 @@ export default function TemplateSection({ onSettingsChange }: TemplateSectionPro
         setSenderEmail(parsed.senderEmail || 'manmeet.8623@gmail.com');
         setSubject(parsed.defaultTemplate?.subject || DEFAULT_SUBJECT);
         setBody(parsed.defaultTemplate?.body || DEFAULT_BODY);
-        setDispatchMethod(parsed.dispatchMethod || 'google_oauth');
+        setDispatchMethod('background_smtp');
         setSmtpPass(parsed.smtpPass || '');
         onSettingsChange({
           senderEmail: parsed.senderEmail || 'manmeet.8623@gmail.com',
           defaultTemplate: parsed.defaultTemplate || { subject: DEFAULT_SUBJECT, body: DEFAULT_BODY },
-          dispatchMethod: parsed.dispatchMethod || 'google_oauth',
+          dispatchMethod: 'background_smtp',
           smtpPass: parsed.smtpPass || ''
         });
       } catch (err) {
@@ -55,23 +56,29 @@ export default function TemplateSection({ onSettingsChange }: TemplateSectionPro
       const initial: AppSettings = {
         senderEmail: 'manmeet.8623@gmail.com',
         defaultTemplate: { subject: DEFAULT_SUBJECT, body: DEFAULT_BODY },
-        dispatchMethod: 'google_oauth',
+        dispatchMethod: 'background_smtp',
         smtpPass: ''
       };
       onSettingsChange(initial);
     }
+    isLoaded.current = true;
   }, []);
 
-  const handleSave = () => {
+  // Auto-save settings instantly on changes
+  useEffect(() => {
+    if (!isLoaded.current) return;
+    
     const updated: AppSettings = {
       senderEmail,
       defaultTemplate: { subject, body },
-      dispatchMethod,
+      dispatchMethod: 'background_smtp',
       smtpPass
     };
     localStorage.setItem('resume_sender_settings', JSON.stringify(updated));
     onSettingsChange(updated);
-    
+  }, [senderEmail, subject, body, smtpPass]);
+
+  const handleSave = () => {
     setIsSaved(true);
     setTimeout(() => setIsSaved(false), 2000);
   };
@@ -81,13 +88,13 @@ export default function TemplateSection({ onSettingsChange }: TemplateSectionPro
       setSubject(DEFAULT_SUBJECT);
       setBody(DEFAULT_BODY);
       setSenderEmail('manmeet.8623@gmail.com');
-      setDispatchMethod('google_oauth');
+      setDispatchMethod('background_smtp');
       setSmtpPass('');
       
       const updated: AppSettings = {
         senderEmail: 'manmeet.8623@gmail.com',
         defaultTemplate: { subject: DEFAULT_SUBJECT, body: DEFAULT_BODY },
-        dispatchMethod: 'google_oauth',
+        dispatchMethod: 'background_smtp',
         smtpPass: ''
       };
       localStorage.setItem('resume_sender_settings', JSON.stringify(updated));
@@ -162,76 +169,33 @@ export default function TemplateSection({ onSettingsChange }: TemplateSectionPro
             </p>
           </div>
 
-          <div className="space-y-2">
-            <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1.5">
-              <span className="flex h-1.5 w-1.5 rounded-full bg-indigo-500" />
-              Active Dispatch Mode
-            </label>
-            <div className="grid grid-cols-2 gap-1 bg-slate-50 p-1 rounded-xl border border-slate-200">
-              <button
-                type="button"
-                onClick={() => setDispatchMethod('google_oauth')}
-                className={`py-1.5 text-[11px] font-semibold rounded-lg transition-all cursor-pointer ${
-                  dispatchMethod === 'google_oauth'
-                    ? 'bg-white text-indigo-700 shadow-xs border border-slate-200/80 font-bold'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                Google OAuth
-              </button>
-              <button
-                type="button"
-                onClick={() => setDispatchMethod('background_smtp')}
-                className={`py-1.5 text-[11px] font-semibold rounded-lg transition-all cursor-pointer ${
-                  dispatchMethod === 'background_smtp'
-                    ? 'bg-white text-indigo-700 shadow-xs border border-slate-200/80 font-bold'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                Google App Pass
-              </button>
-            </div>
-          </div>
-
-          {dispatchMethod === 'google_oauth' ? (
-            <div className="bg-gradient-to-tr from-indigo-50 to-slate-50 border border-indigo-100 rounded-xl p-4 space-y-2">
-              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-[9px] font-bold text-indigo-700 bg-indigo-150 rounded-full uppercase tracking-wider font-sans">
-                🔒 OAuth Authorization
+          <div className="bg-gradient-to-tr from-indigo-50/50 to-slate-50 border border-indigo-100/60 rounded-xl p-4 space-y-2.5">
+            <div className="space-y-0.5">
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-[9px] font-bold text-emerald-700 bg-emerald-100 rounded-full uppercase tracking-wider font-sans">
+                🚀 Saved Google App Password
               </span>
-              <h3 className="text-xs font-bold text-slate-800">Gmail API Auth</h3>
+              <h3 className="text-xs font-bold text-slate-800">Permanent Offline Send</h3>
               <p className="text-[11px] text-slate-600 leading-normal">
-                A secure login that allows background delivery. Keeps you authenticated, but Google OAuth credentials expire after 1 hour of inactivity.
+                Saves your secure 16-character SMTP credential in your local private browser storage so you never have to sign-in again!
               </p>
             </div>
-          ) : (
-            <div className="bg-gradient-to-tr from-indigo-50/50 to-slate-50 border border-indigo-100/60 rounded-xl p-4 space-y-2.5">
-              <div className="space-y-0.5">
-                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-[9px] font-bold text-emerald-700 bg-emerald-100 rounded-full uppercase tracking-wider font-sans">
-                  🚀 Saved Google App Password
-                </span>
-                <h3 className="text-xs font-bold text-slate-800">Permanent Offline Send</h3>
-                <p className="text-[11px] text-slate-600 leading-normal">
-                  Saves your secure 16-character SMTP credential in your local private browser storage so you never have to sign-in again!
-                </p>
-              </div>
 
-              <div className="space-y-1">
-                <label className="block text-[9px] font-bold text-slate-700 uppercase tracking-wide">
-                  Gmail App Password:
-                </label>
-                <input
-                  type="password"
-                  value={smtpPass}
-                  onChange={(e) => setSmtpPass(e.target.value.replace(/\s+/g, ''))}
-                  className="w-full px-3 py-1.5 text-base md:text-xs text-slate-800 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-150 focus:border-indigo-500 font-mono"
-                  placeholder="e.g. abcd efgh ijkl mnop"
-                />
-                <p className="text-[9.5px] text-slate-500 leading-tight">
-                  Enable Google Account 2-Step verification, search for <strong>"App Passwords"</strong> on Google settings, and paste the 16-character code.
-                </p>
-              </div>
+            <div className="space-y-1">
+              <label className="block text-[9px] font-bold text-slate-700 uppercase tracking-wide">
+                Gmail App Password:
+              </label>
+              <input
+                type="password"
+                value={smtpPass}
+                onChange={(e) => setSmtpPass(e.target.value.replace(/\s+/g, ''))}
+                className="w-full px-3 py-1.5 text-base md:text-xs text-slate-800 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-150 focus:border-indigo-500 font-mono"
+                placeholder="e.g. abcd efgh ijkl mnop"
+              />
+              <p className="text-[9.5px] text-slate-500 leading-tight">
+                Enable Google Account 2-Step verification, search for <strong>"App Passwords"</strong> on Google settings, and paste the 16-character code.
+              </p>
             </div>
-          )}
+          </div>
 
           <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
             <h4 className="text-[11px] font-semibold text-slate-700 uppercase tracking-wider mb-2">
