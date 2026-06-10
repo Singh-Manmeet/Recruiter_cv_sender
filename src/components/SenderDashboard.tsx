@@ -30,8 +30,8 @@ const getAbsoluteUrl = (path: string, apiUrlOverride?: string): string => {
       return `${origin}${path}`;
     }
   }
-  // Native Capacitor / iOS Wrapper fallback
-  return `https://ais-pre-6xmvfw4eu3sxvbwrb7fool-815669580742.asia-southeast1.run.app${path}`;
+  // Native Capacitor / iOS Wrapper fallback: route to active development backend where updates are running live.
+  return `https://ais-dev-6xmvfw4eu3sxvbwrb7fool-815669580742.asia-southeast1.run.app${path}`;
 };
 
 interface SenderDashboardProps {
