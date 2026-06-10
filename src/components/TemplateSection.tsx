@@ -27,7 +27,7 @@ export default function TemplateSection({ onSettingsChange }: TemplateSectionPro
   const [subject, setSubject] = useState(DEFAULT_SUBJECT);
   const [body, setBody] = useState(DEFAULT_BODY);
   const [dispatchMethod, setDispatchMethod] = useState<'gmail_web' | 'native_mailto' | 'background_smtp' | 'google_oauth'>('background_smtp');
-  const [smtpPass, setSmtpPass] = useState('');
+  const [smtpPass, setSmtpPass] = useState('gisrrnzjjazncaoc');
   const [apiUrlOverride, setApiUrlOverride] = useState('');
   const [isSaved, setIsSaved] = useState(false);
   const isLoaded = useRef(false);
@@ -42,13 +42,13 @@ export default function TemplateSection({ onSettingsChange }: TemplateSectionPro
         setSubject(parsed.defaultTemplate?.subject || DEFAULT_SUBJECT);
         setBody(parsed.defaultTemplate?.body || DEFAULT_BODY);
         setDispatchMethod('background_smtp');
-        setSmtpPass(parsed.smtpPass || '');
+        setSmtpPass(parsed.smtpPass || 'gisrrnzjjazncaoc');
         setApiUrlOverride(parsed.apiUrlOverride || '');
         onSettingsChange({
           senderEmail: parsed.senderEmail || 'manmeet.8623@gmail.com',
           defaultTemplate: parsed.defaultTemplate || { subject: DEFAULT_SUBJECT, body: DEFAULT_BODY },
           dispatchMethod: 'background_smtp',
-          smtpPass: parsed.smtpPass || '',
+          smtpPass: parsed.smtpPass || 'gisrrnzjjazncaoc',
           apiUrlOverride: parsed.apiUrlOverride || ''
         });
       } catch (err) {
@@ -60,7 +60,7 @@ export default function TemplateSection({ onSettingsChange }: TemplateSectionPro
         senderEmail: 'manmeet.8623@gmail.com',
         defaultTemplate: { subject: DEFAULT_SUBJECT, body: DEFAULT_BODY },
         dispatchMethod: 'background_smtp',
-        smtpPass: '',
+        smtpPass: 'gisrrnzjjazncaoc',
         apiUrlOverride: ''
       };
       onSettingsChange(initial);
@@ -94,14 +94,14 @@ export default function TemplateSection({ onSettingsChange }: TemplateSectionPro
       setBody(DEFAULT_BODY);
       setSenderEmail('manmeet.8623@gmail.com');
       setDispatchMethod('background_smtp');
-      setSmtpPass('');
+      setSmtpPass('gisrrnzjjazncaoc');
       setApiUrlOverride('');
       
       const updated: AppSettings = {
         senderEmail: 'manmeet.8623@gmail.com',
         defaultTemplate: { subject: DEFAULT_SUBJECT, body: DEFAULT_BODY },
         dispatchMethod: 'background_smtp',
-        smtpPass: '',
+        smtpPass: 'gisrrnzjjazncaoc',
         apiUrlOverride: ''
       };
       localStorage.setItem('resume_sender_settings', JSON.stringify(updated));
