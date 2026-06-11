@@ -282,7 +282,7 @@ export default function TemplateSection({
                   value={apiUrlOverride}
                   onChange={(e) => setApiUrlOverride(e.target.value.trim())}
                   className="w-full px-3 py-1.5 text-base md:text-[11px] text-slate-800 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-150 focus:border-indigo-500 font-mono"
-                  placeholder="e.g. https://ais-dev-6xmvfw4eu3sxvbwrb7fool-815669580742.asia-southeast1.run.app"
+                  placeholder="Leave blank to use current browser domain"
                 />
               </div>
             </div>
@@ -323,10 +323,10 @@ export default function TemplateSection({
                   value={apiUrlOverride}
                   onChange={(e) => setApiUrlOverride(e.target.value.trim())}
                   className="w-full px-3 py-1.5 text-base md:text-[11px] text-slate-800 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-150 focus:border-indigo-500 font-mono"
-                  placeholder="e.g. https://ais-dev-6xmvfw4eu3sxvbwrb7fool-815669580742.asia-southeast1.run.app"
+                  placeholder="Leave blank to use current browser domain"
                 />
                 <p className="text-[9.5px] text-slate-500 leading-tight">
-                  For native iOS/Android simulators, override the destination API backend. Leave blank to default to the live development server.
+                  For mobile simulators (iOS/Android), specify the destination server URL. <strong>Keep blank</strong> under desktop browsers to autodetect natively.
                 </p>
               </div>
             </div>

@@ -19,17 +19,29 @@ import { extractCompanyName, isValidEmail, getResume } from '../db';
 import { logger } from '../lib/logger';
 
 const getAbsoluteUrl = (path: string, apiUrlOverride?: string): string => {
+  if (typeof window !== 'undefined') {
+    const origin = window.location.origin;
+    // Standard mobile applications use capacitor:// or file:// or are loaded locally.
+    const isNativeMobile = origin && (
+      origin.startsWith('capacitor://') || 
+      origin.startsWith('file://') || 
+      origin.includes('localhost:') || 
+      origin === 'http://localhost'
+    );
+    
+    if (origin && !isNativeMobile && (origin.startsWith('http://') || origin.startsWith('https://'))) {
+      // In standard browsers, ALWAYS prefer the dynamic current page origin as the API backend
+      return `${origin.endsWith('/') ? origin.slice(0, -1) : origin}${path}`;
+    }
+  }
+
   if (apiUrlOverride && apiUrlOverride.trim()) {
     const base = apiUrlOverride.endsWith('/') ? apiUrlOverride.slice(0, -1) : apiUrlOverride;
     return `${base}${path}`;
   }
-  if (typeof window !== 'undefined') {
-    const origin = window.location.origin;
-    if (origin && (origin.startsWith('http://') || origin.startsWith('https://'))) {
-      return `${origin}${path}`;
-    }
-  }
-  return `https://ais-dev-6xmvfw4eu3sxvbwrb7fool-815669580742.asia-southeast1.run.app${path}`;
+
+  // Default to the public, unauthenticated Shared App URL for native device/simulation testing
+  return `https://ais-pre-6xmvfw4eu3sxvbwrb7fool-815669580742.asia-southeast1.run.app${path}`;
 };
 
 interface SenderDashboardProps {
