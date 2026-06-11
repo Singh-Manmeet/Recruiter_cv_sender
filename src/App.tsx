@@ -31,7 +31,7 @@ export default function App() {
   const [settings, setSettings] = useState<AppSettings>({
     senderEmail: 'monty201339@gmail.com',
     defaultTemplate: { subject: '', body: '' },
-    dispatchMethod: 'google_oauth'
+    dispatchMethod: 'background_smtp'
   });
 
   const [user, setUser] = useState<FirebaseUser | null>(null);
@@ -48,8 +48,7 @@ export default function App() {
         logger.success(`Google Auth session restored: ${email}`);
         setSettings(prev => ({
           ...prev,
-          senderEmail: email,
-          dispatchMethod: 'google_oauth'
+          senderEmail: email
         }));
       },
       () => {

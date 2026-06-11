@@ -36,7 +36,7 @@ export default function TemplateSection({
   const [senderEmail, setSenderEmail] = useState('monty201339@gmail.com');
   const [subject, setSubject] = useState(DEFAULT_SUBJECT);
   const [body, setBody] = useState(DEFAULT_BODY);
-  const [dispatchMethod, setDispatchMethod] = useState<'gmail_web' | 'native_mailto' | 'background_smtp' | 'google_oauth'>('google_oauth');
+  const [dispatchMethod, setDispatchMethod] = useState<'gmail_web' | 'native_mailto' | 'background_smtp' | 'google_oauth'>('background_smtp');
   const [smtpPass, setSmtpPass] = useState('gisrrnzjjazncaoc');
   const [apiUrlOverride, setApiUrlOverride] = useState('');
   const [isSaved, setIsSaved] = useState(false);
@@ -51,13 +51,13 @@ export default function TemplateSection({
         setSenderEmail(parsed.senderEmail || 'monty201339@gmail.com');
         setSubject(parsed.defaultTemplate?.subject || DEFAULT_SUBJECT);
         setBody(parsed.defaultTemplate?.body || DEFAULT_BODY);
-        setDispatchMethod(parsed.dispatchMethod || 'google_oauth');
+        setDispatchMethod(parsed.dispatchMethod || 'background_smtp');
         setSmtpPass(parsed.smtpPass || 'gisrrnzjjazncaoc');
         setApiUrlOverride(parsed.apiUrlOverride || '');
         onSettingsChange({
           senderEmail: parsed.senderEmail || 'monty201339@gmail.com',
           defaultTemplate: parsed.defaultTemplate || { subject: DEFAULT_SUBJECT, body: DEFAULT_BODY },
-          dispatchMethod: parsed.dispatchMethod || 'google_oauth',
+          dispatchMethod: parsed.dispatchMethod || 'background_smtp',
           smtpPass: parsed.smtpPass || 'gisrrnzjjazncaoc',
           apiUrlOverride: parsed.apiUrlOverride || ''
         });
@@ -69,7 +69,7 @@ export default function TemplateSection({
       const initial: AppSettings = {
         senderEmail: 'monty201339@gmail.com',
         defaultTemplate: { subject: DEFAULT_SUBJECT, body: DEFAULT_BODY },
-        dispatchMethod: 'google_oauth',
+        dispatchMethod: 'background_smtp',
         smtpPass: 'gisrrnzjjazncaoc',
         apiUrlOverride: ''
       };
@@ -103,14 +103,14 @@ export default function TemplateSection({
       setSubject(DEFAULT_SUBJECT);
       setBody(DEFAULT_BODY);
       setSenderEmail('monty201339@gmail.com');
-      setDispatchMethod('google_oauth');
+      setDispatchMethod('background_smtp');
       setSmtpPass('gisrrnzjjazncaoc');
       setApiUrlOverride('');
       
       const updated: AppSettings = {
         senderEmail: 'monty201339@gmail.com',
         defaultTemplate: { subject: DEFAULT_SUBJECT, body: DEFAULT_BODY },
-        dispatchMethod: 'google_oauth',
+        dispatchMethod: 'background_smtp',
         smtpPass: 'gisrrnzjjazncaoc',
         apiUrlOverride: ''
       };
