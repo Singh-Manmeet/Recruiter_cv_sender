@@ -21,14 +21,78 @@ import { Capacitor } from '@capacitor/core';
 import { App as NativeApp } from '@capacitor/app';
 import { logger } from './lib/logger';
 import DebugLogConsole from './components/DebugLogConsole';
+import { initAuth, googleSignIn, logout } from './lib/firebaseAuth';
+import { User as FirebaseUser } from 'firebase/auth';
 
 export default function App() {
   const [isResumeUploaded, setIsResumeUploaded] = useState<boolean>(false);
   const [history, setHistory] = useState<RecruiterRecord[]>([]);
   const [settings, setSettings] = useState<AppSettings>({
     senderEmail: 'monty201339@gmail.com',
-    defaultTemplate: { subject: '', body: '' }
+    defaultTemplate: { subject: '', body: '' },
+    dispatchMethod: 'google_oauth'
   });
+
+  const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [authEmail, setAuthEmail] = useState<string | null>(null);
+
+  // Initialize and silently recover cached Google sessions on mount
+  useEffect(() => {
+    const unsub = initAuth(
+      (currentUser, token, email) => {
+        setUser(currentUser);
+        setAccessToken(token);
+        setAuthEmail(email);
+        logger.success(`Google Auth session restored: ${email}`);
+        setSettings(prev => ({
+          ...prev,
+          senderEmail: email,
+          dispatchMethod: 'google_oauth'
+        }));
+      },
+      () => {
+        setUser(null);
+        setAccessToken(null);
+        setAuthEmail(null);
+        logger.info('No cached Google authentication sessions.');
+      }
+    );
+    return unsub;
+  }, []);
+
+  const handleGoogleSignIn = async () => {
+    try {
+      logger.info('Initiating authentication with Google...');
+      const result = await googleSignIn();
+      if (result) {
+        setUser(result.user);
+        setAccessToken(result.accessToken);
+        setAuthEmail(result.email);
+        setSettings(prev => ({
+          ...prev,
+          senderEmail: result.email,
+          dispatchMethod: 'google_oauth'
+        }));
+        logger.success(`Google Sign-In successful. Account auth: ${result.email}`);
+      }
+    } catch (err: any) {
+      logger.error(`Google Sign-In failed: ${err?.message || err}`);
+      alert(`Google Sign-In failed: ${err?.message || err}`);
+    }
+  };
+
+  const handleGoogleSignOut = async () => {
+    try {
+      await logout();
+      setUser(null);
+      setAccessToken(null);
+      setAuthEmail(null);
+      logger.info('Google session logged out.');
+    } catch (err: any) {
+      logger.error(`Logout failed: ${err?.message || err}`);
+    }
+  };
 
   // Listen for native URL open events (Capacitor deep-linking redirects)
   useEffect(() => {
@@ -147,7 +211,13 @@ export default function App() {
             <ResumeSection onStatusChange={setIsResumeUploaded} />
           </div>
           <div className="xl:col-span-2">
-            <TemplateSection onSettingsChange={setSettings} />
+            <TemplateSection 
+              onSettingsChange={setSettings} 
+              accessToken={accessToken}
+              authEmail={authEmail}
+              onGoogleSignIn={handleGoogleSignIn}
+              onGoogleSignOut={handleGoogleSignOut}
+            />
           </div>
         </div>
 
@@ -157,6 +227,9 @@ export default function App() {
           history={history}
           isResumeUploaded={isResumeUploaded}
           onAddRecruiters={handleAddRecruiters}
+          accessToken={accessToken}
+          authEmail={authEmail}
+          onGoogleSignIn={handleGoogleSignIn}
         />
 
         {/* Recruiter Log History section (Another Section) */}
