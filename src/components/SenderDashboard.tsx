@@ -37,13 +37,19 @@ interface SenderDashboardProps {
   history: RecruiterRecord[];
   isResumeUploaded: boolean;
   onAddRecruiters: (records: RecruiterRecord[]) => void;
+  accessToken?: string | null;
+  authEmail?: string | null;
+  onGoogleSignIn?: () => void;
 }
 
 export default function SenderDashboard({ 
   settings, 
   history, 
   isResumeUploaded,
-  onAddRecruiters 
+  onAddRecruiters,
+  accessToken,
+  authEmail,
+  onGoogleSignIn
 }: SenderDashboardProps) {
   const [inputText, setInputText] = useState('');
   const [parsedEmails, setParsedEmails] = useState<ParsedEmailState[]>([]);
@@ -185,22 +191,32 @@ export default function SenderDashboard({
     return window.btoa(binary);
   };
 
-  // Triggers one-by-one background SMTP sending
+  // Triggers one-by-one background SMTP or Google OAuth sending
   const handleSingleBackgroundSend = async (item: ParsedEmailState, index: number) => {
     if (isSingleSending !== null || isBatchSending) return;
     
     logger.info(`Single dispatch triggered for email target: ${item.email}`);
     try {
       if (!isResumeUploaded) {
-        logger.warn('Single SMTP dispatch aborted: No PDF CV uploaded.');
+        logger.warn('Single dispatch aborted: No PDF CV uploaded.');
         alert('No Resume CV PDF Uploaded! Please upload in Section 1 first.');
         return;
       }
 
-      if (!settings.smtpPass) {
-        logger.warn('Single SMTP dispatch aborted: No 16-character App Password entered.');
-        alert('Missing Google App Password! Please input your 16-character App Password inside Section 2 settings.');
-        return;
+      const isOAuth = settings.dispatchMethod === 'google_oauth';
+
+      if (isOAuth) {
+        if (!accessToken) {
+          logger.warn('Single dispatch aborted: Google session is not authenticated.');
+          alert('Please click "Sign In with Google" inside Section 2 settings to authenticate first!');
+          return;
+        }
+      } else {
+        if (!settings.smtpPass) {
+          logger.warn('Single SMTP dispatch aborted: No 16-character App Password entered.');
+          alert('Missing Google App Password! Please input your 16-character App Password inside Section 2 settings.');
+          return;
+        }
       }
 
       setIsSingleSending(index);
@@ -214,9 +230,22 @@ export default function SenderDashboard({
       const base64CV = bufferToBase64(resume.data);
       logger.info(`PDF Decoded. Binary length: ${resume.data.byteLength} bytes. Dispatching email...`);
 
-      const url = getAbsoluteUrl('/api/send-email', settings.apiUrlOverride);
+      const endpoint = isOAuth ? '/api/send-email-oauth' : '/api/send-email';
+      const url = getAbsoluteUrl(endpoint, settings.apiUrlOverride);
       logger.info(`Sending POST request to: ${url}`);
-      const bodyPayload = {
+
+      const bodyPayload = isOAuth ? {
+        accessToken: accessToken,
+        senderEmail: authEmail || settings.senderEmail,
+        to: item.email,
+        subject: item.customSubject || '',
+        body: item.customBody || '',
+        attachment: {
+          name: resume.name,
+          type: 'application/pdf',
+          data: base64CV
+        }
+      } : {
         smtpUser: settings.senderEmail,
         smtpPass: settings.smtpPass,
         to: item.email,
@@ -256,7 +285,7 @@ export default function SenderDashboard({
         email: item.email,
         companyName: item.companyName,
         sentAt: new Date().toISOString(),
-        senderEmail: settings.senderEmail,
+        senderEmail: isOAuth ? (authEmail || settings.senderEmail) : settings.senderEmail,
         subject: item.customSubject || '',
         body: item.customBody || ''
       };
@@ -285,9 +314,18 @@ export default function SenderDashboard({
       return;
     }
 
-    if (!settings.smtpPass) {
-      setBatchError('Missing App Password! Please open Section 2 and enter your 16-character Google App Password first.');
-      return;
+    const isOAuth = settings.dispatchMethod === 'google_oauth';
+
+    if (isOAuth) {
+      if (!accessToken) {
+        setBatchError('Please log in with Google first in Section 2 settings before starting the batch send.');
+        return;
+      }
+    } else {
+      if (!settings.smtpPass) {
+        setBatchError('Missing App Password! Please open Section 2 and enter your 16-character Google App Password first.');
+        return;
+      }
     }
 
     const targets = parsedEmails.filter(item => {
@@ -322,7 +360,7 @@ export default function SenderDashboard({
       addLog(`✓ Resume Loaded: "${resume.name}" (${(resume.data.byteLength / 1024).toFixed(1)} KB)`);
 
       const base64CV = bufferToBase64(resume.data);
-      addLog(`CV Base64 conversion successful. Initializing SMTP background queue...`);
+      addLog(`CV Base64 conversion successful. Initializing ${isOAuth ? 'Gmail API' : 'SMTP'} background queue...`);
 
       const succeededRecords: RecruiterRecord[] = [];
       const processesToRemove: string[] = [];
@@ -333,9 +371,22 @@ export default function SenderDashboard({
         addLog(`[${i + 1}/${targets.length}] Dispatching cover letter email to ${item.email}...`);
 
         try {
-          const url = getAbsoluteUrl('/api/send-email', settings.apiUrlOverride);
+          const endpoint = isOAuth ? '/api/send-email-oauth' : '/api/send-email';
+          const url = getAbsoluteUrl(endpoint, settings.apiUrlOverride);
           addLog(`  ↳ POST request initiated to: ${url}`);
-          const bodyPayload = {
+          
+          const bodyPayload = isOAuth ? {
+            accessToken: accessToken,
+            senderEmail: authEmail || settings.senderEmail,
+            to: item.email,
+            subject: item.customSubject || '',
+            body: item.customBody || '',
+            attachment: {
+              name: resume.name,
+              type: 'application/pdf',
+              data: base64CV
+            }
+          } : {
             smtpUser: settings.senderEmail,
             smtpPass: settings.smtpPass,
             to: item.email,
@@ -375,7 +426,7 @@ export default function SenderDashboard({
             email: item.email,
             companyName: item.companyName,
             sentAt: new Date().toISOString(),
-            senderEmail: settings.senderEmail,
+            senderEmail: isOAuth ? (authEmail || settings.senderEmail) : settings.senderEmail,
             subject: item.customSubject || '',
             body: item.customBody || ''
           };
