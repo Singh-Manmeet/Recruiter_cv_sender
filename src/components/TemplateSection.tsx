@@ -4,10 +4,6 @@ import { AppSettings } from '../types';
 
 interface TemplateSectionProps {
   onSettingsChange: (settings: AppSettings) => void;
-  accessToken: string | null;
-  authEmail: string | null;
-  onGoogleSignIn: () => Promise<void>;
-  onGoogleSignOut: () => Promise<void>;
 }
 
 // Highly polished, realistic job application templates
@@ -26,28 +22,15 @@ Best regards,
 Monty
 Email: monty201339@gmail.com`;
 
-export default function TemplateSection({ 
-  onSettingsChange,
-  accessToken,
-  authEmail,
-  onGoogleSignIn,
-  onGoogleSignOut
-}: TemplateSectionProps) {
+export default function TemplateSection({ onSettingsChange }: TemplateSectionProps) {
   const [senderEmail, setSenderEmail] = useState('monty201339@gmail.com');
   const [subject, setSubject] = useState(DEFAULT_SUBJECT);
   const [body, setBody] = useState(DEFAULT_BODY);
-  const [dispatchMethod, setDispatchMethod] = useState<'gmail_web' | 'native_mailto' | 'background_smtp' | 'google_oauth'>('google_oauth');
+  const [dispatchMethod, setDispatchMethod] = useState<'gmail_web' | 'native_mailto' | 'background_smtp' | 'google_oauth'>('background_smtp');
   const [smtpPass, setSmtpPass] = useState('gisrrnzjjazncaoc');
   const [apiUrlOverride, setApiUrlOverride] = useState('');
   const [isSaved, setIsSaved] = useState(false);
   const isLoaded = useRef(false);
-
-  // Sync state when google auth changes
-  useEffect(() => {
-    if (authEmail) {
-      setSenderEmail(authEmail);
-    }
-  }, [authEmail]);
 
   // Load from local storage
   useEffect(() => {
@@ -55,16 +38,16 @@ export default function TemplateSection({
     if (saved) {
       try {
         const parsed = JSON.parse(saved) as AppSettings;
-        setSenderEmail(authEmail || parsed.senderEmail || 'monty201339@gmail.com');
+        setSenderEmail(parsed.senderEmail || 'monty201339@gmail.com');
         setSubject(parsed.defaultTemplate?.subject || DEFAULT_SUBJECT);
         setBody(parsed.defaultTemplate?.body || DEFAULT_BODY);
-        setDispatchMethod('google_oauth');
+        setDispatchMethod('background_smtp');
         setSmtpPass(parsed.smtpPass || 'gisrrnzjjazncaoc');
         setApiUrlOverride(parsed.apiUrlOverride || '');
         onSettingsChange({
-          senderEmail: authEmail || parsed.senderEmail || 'monty201339@gmail.com',
+          senderEmail: parsed.senderEmail || 'monty201339@gmail.com',
           defaultTemplate: parsed.defaultTemplate || { subject: DEFAULT_SUBJECT, body: DEFAULT_BODY },
-          dispatchMethod: 'google_oauth',
+          dispatchMethod: 'background_smtp',
           smtpPass: parsed.smtpPass || 'gisrrnzjjazncaoc',
           apiUrlOverride: parsed.apiUrlOverride || ''
         });
@@ -74,16 +57,16 @@ export default function TemplateSection({
     } else {
       // Setup defaults
       const initial: AppSettings = {
-        senderEmail: authEmail || 'monty201339@gmail.com',
+        senderEmail: 'monty201339@gmail.com',
         defaultTemplate: { subject: DEFAULT_SUBJECT, body: DEFAULT_BODY },
-        dispatchMethod: 'google_oauth',
+        dispatchMethod: 'background_smtp',
         smtpPass: 'gisrrnzjjazncaoc',
         apiUrlOverride: ''
       };
       onSettingsChange(initial);
     }
     isLoaded.current = true;
-  }, [authEmail]);
+  }, []);
 
   // Auto-save settings instantly on changes
   useEffect(() => {
@@ -92,7 +75,7 @@ export default function TemplateSection({
     const updated: AppSettings = {
       senderEmail,
       defaultTemplate: { subject, body },
-      dispatchMethod: 'google_oauth',
+      dispatchMethod: 'background_smtp',
       smtpPass,
       apiUrlOverride
     };
@@ -109,15 +92,15 @@ export default function TemplateSection({
     if (window.confirm('Are you sure you want to revert to default templates?')) {
       setSubject(DEFAULT_SUBJECT);
       setBody(DEFAULT_BODY);
-      setSenderEmail(authEmail || 'monty201339@gmail.com');
-      setDispatchMethod('google_oauth');
+      setSenderEmail('monty201339@gmail.com');
+      setDispatchMethod('background_smtp');
       setSmtpPass('gisrrnzjjazncaoc');
       setApiUrlOverride('');
       
       const updated: AppSettings = {
-        senderEmail: authEmail || 'monty201339@gmail.com',
+        senderEmail: 'monty201339@gmail.com',
         defaultTemplate: { subject: DEFAULT_SUBJECT, body: DEFAULT_BODY },
-        dispatchMethod: 'google_oauth',
+        dispatchMethod: 'background_smtp',
         smtpPass: 'gisrrnzjjazncaoc',
         apiUrlOverride: ''
       };
@@ -193,58 +176,48 @@ export default function TemplateSection({
             </p>
           </div>
 
-          <div className="bg-gradient-to-tr from-indigo-50/50 to-slate-50 border border-indigo-100/60 rounded-xl p-4 space-y-3.5 shadow-xs">
+          <div className="bg-gradient-to-tr from-indigo-50/50 to-slate-50 border border-indigo-100/60 rounded-xl p-4 space-y-2.5 shadow-xs">
             <div className="space-y-0.5">
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-bold text-indigo-700 bg-indigo-50 rounded-full uppercase tracking-wider">
-                🔒 Google Authorized Channel
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-[9px] font-bold text-emerald-700 bg-emerald-100 rounded-full uppercase tracking-wider font-sans">
+                🚀 Saved Google App Password
               </span>
-              <h3 className="text-xs font-bold text-slate-800">Google OAuth 2.0 Login</h3>
+              <h3 className="text-xs font-bold text-slate-800">Permanent Offline Send</h3>
               <p className="text-[11px] text-slate-600 leading-normal">
-                Bypasses manuals SMTP App Passwords. Signs in once securely with Google to send CV bulk emails directly in the background.
+                Saves your secure 16-character SMTP credential in your local private browser storage so you never have to sign-in again!
               </p>
             </div>
 
-            {accessToken && authEmail ? (
-              <div className="space-y-2">
-                <div className="bg-emerald-50 border border-emerald-150/65 rounded-lg p-2.5 space-y-1">
-                  <div className="flex items-center gap-1.5">
-                    <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                    <span className="text-[10px] font-bold text-emerald-850 uppercase tracking-wider font-mono">✓ Google Connected</span>
-                  </div>
-                  <p className="text-xs font-semibold text-slate-800 font-mono truncate">{authEmail}</p>
-                  <p className="text-[9px] text-emerald-600 leading-normal mt-1">
-                    Your direct email pipeline is authorized and active (refreshed automatically).
-                  </p>
-                </div>
-                
-                <button
-                  type="button"
-                  onClick={onGoogleSignOut}
-                  className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-100 rounded-xl hover:bg-rose-100 transition-colors cursor-pointer"
-                >
-                  Disconnect Account
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <button
-                  type="button"
-                  onClick={onGoogleSignIn}
-                  className="w-full inline-flex items-center justify-center gap-2.5 px-3 py-2.5 text-xs font-bold text-white bg-slate-900 border border-slate-950 hover:bg-slate-800 rounded-xl shadow-xs transition-transform transform active:scale-[0.98] cursor-pointer"
-                >
-                  <svg className="w-4.5 h-4.5 shrink-0" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                    <path d="M5.84 14.1c-.22-.66-.35-1.36-.35-2.1s.13-1.44.35-2.1V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.84z" fill="#FBBC05"/>
-                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/>
-                  </svg>
-                  Tap to Auth with Google
-                </button>
-                <p className="text-[10px] text-slate-500 leading-normal text-center bg-slate-100/40 p-2 rounded-lg">
-                  Authorizes the local pipeline to securely send cover letter deliveries directly using standard Google endpoints.
-                </p>
-              </div>
-            )}
+            <div className="space-y-1">
+              <label className="block text-[9px] font-bold text-slate-700 uppercase tracking-wide">
+                Gmail App Password:
+              </label>
+              <input
+                type="password"
+                value={smtpPass}
+                onChange={(e) => setSmtpPass(e.target.value.replace(/\s+/g, ''))}
+                className="w-full px-3 py-1.5 text-base md:text-xs text-slate-800 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-150 focus:border-indigo-500 font-mono"
+                placeholder="e.g. abcd efgh ijkl mnop"
+              />
+              <p className="text-[9.5px] text-slate-500 leading-tight">
+                Enable Google Account 2-Step verification, search for <strong>"App Passwords"</strong> on Google settings, and paste the 16-character code.
+              </p>
+            </div>
+
+            <div className="space-y-1 pt-1.5 border-t border-indigo-100/40">
+              <label className="block text-[9px] font-bold text-slate-700 uppercase tracking-wide">
+                API Delivery Server URL (Optional):
+              </label>
+              <input
+                type="text"
+                value={apiUrlOverride}
+                onChange={(e) => setApiUrlOverride(e.target.value.trim())}
+                className="w-full px-3 py-1.5 text-base md:text-[11px] text-slate-800 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-150 focus:border-indigo-500 font-mono"
+                placeholder="e.g. https://ais-dev-6xmvfw4eu3sxvbwrb7fool-815669580742.asia-southeast1.run.app"
+              />
+              <p className="text-[9.5px] text-slate-500 leading-tight">
+                For native iOS/Android simulators, override the destination API backend. Leave blank to default to the live development server.
+              </p>
+            </div>
           </div>
 
           <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
